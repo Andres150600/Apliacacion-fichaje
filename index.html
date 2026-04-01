@@ -159,7 +159,7 @@ function Login({onLogin,toast}){
 function Admin({user,onLogout,toast}){
   const [tab,setTab]=useState('dashboard');
   const [menuOpen,setMenuOpen]=useState(false);
-  const [isMobile,setIsMobile]=useState(window.innerWidth<=768);
+  const [isMobile,setIsMobile]=useState(window.innerWidth<=1024);
   const tabs=[
     {id:'dashboard',label:'Panel'},
     {id:'fichajes',label:'Fichajes'},
@@ -170,7 +170,7 @@ function Admin({user,onLogout,toast}){
   const [pendientes,setPendientes]=useState(0);
 
   useEffect(()=>{
-    const handle=()=>setIsMobile(window.innerWidth<=768);
+    const handle=()=>setIsMobile(window.innerWidth<=1024);
     window.addEventListener('resize',handle);
     return()=>window.removeEventListener('resize',handle);
   },[]);
@@ -658,12 +658,12 @@ function AdminDocumentos({toast}){
 function Empleado({user,onLogout,toast}){
   const [tab,setTab]=useState('fichar');
   const [menuOpen,setMenuOpen]=useState(false);
-  const [isMobile,setIsMobile]=useState(window.innerWidth<=768);
+  const [isMobile,setIsMobile]=useState(window.innerWidth<=1024);
   const [checkedIn,setCheckedIn]=useState(false);
   const [fichajeHoy,setFichajeHoy]=useState(null);
 
   useEffect(()=>{
-    const handle=()=>setIsMobile(window.innerWidth<=768);
+    const handle=()=>setIsMobile(window.innerWidth<=1024);
     window.addEventListener('resize',handle);
     return()=>window.removeEventListener('resize',handle);
   },[]);
