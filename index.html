@@ -28,6 +28,19 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 button{cursor:pointer;font-family:inherit;border-radius:var(--r);border:none;font-size:13px}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:var(--border)}
+@media(max-width:600px){
+  .shell{flex-direction:column!important}
+  .sidebar{width:100%!important;flex-direction:row!important;flex-wrap:wrap;border-right:none!important;border-bottom:1px solid var(--border)!important}
+  .sidebar-header{padding:12px 16px!important;border-bottom:none!important;min-width:120px}
+  .sidebar-nav{display:flex!important;flex-direction:row!important;flex-wrap:wrap;padding:4px 8px!important;flex:1}
+  .sidebar-nav button{padding:8px 10px!important;font-size:10px!important;border-left:none!important;border-bottom:2px solid transparent!important;white-space:nowrap}
+  .sidebar-logout{padding:8px 12px!important;border-top:none!important;border-left:1px solid var(--border)!important;font-size:10px!important}
+  .main-content{padding:16px!important}
+  .stat-grid{grid-template-columns:repeat(2,1fr)!important}
+  .week-dept-grid{grid-template-columns:1fr!important}
+  .emp-grid{grid-template-columns:1fr!important}
+  .doc-grid{grid-template-columns:1fr!important}
+}
 </style>
 </head>
 <body>
@@ -155,14 +168,14 @@ function Admin({user,onLogout,toast}){
   },[tab]);
 
   return(
-    <div style={{display:'flex',minHeight:'100vh'}}>
-      <aside style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
-        <div style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
+    <div className="shell" style={{display:'flex',minHeight:'100vh'}}>
+      <aside className="sidebar" style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div className="sidebar-header" style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Admin</div>
           <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
           <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
         </div>
-        <nav style={{flex:1,padding:'10px 0'}}>
+        <nav className="sidebar-nav" style={{flex:1,padding:'10px 0'}}>
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)} style={{
               display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 18px',
@@ -179,11 +192,11 @@ function Admin({user,onLogout,toast}){
             </button>
           ))}
         </nav>
-        <button onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
+        <button className="sidebar-logout" onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
           Cerrar sesión
         </button>
       </aside>
-      <main style={{flex:1,overflow:'auto',padding:26}}>
+      <main className="main-content" style={{flex:1,overflow:'auto',padding:26}}>
         {tab==='dashboard'&&<AdminDashboard/>}
         {tab==='fichajes'&&<AdminFichajes toast={toast}/>}
         {tab==='ausencias'&&<AdminAusencias toast={toast}/>}
@@ -251,7 +264,7 @@ function AdminDashboard(){
   return(
     <div>
       <SH title='Panel de control' sub={fmtDate(new Date())}/>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:22}}>
+      <div className="stat-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:22}}>
         {statCards.map((s,i)=>(
           <div key={i} style={{background:'var(--surface)',border:`1px solid ${s.hi?'var(--accent2)':s.warn?'var(--danger)':'var(--border)'}`,borderRadius:8,padding:16}}>
             <div style={{fontSize:10,letterSpacing:2,color:'var(--muted)',marginBottom:8,textTransform:'uppercase'}}>{s.label}</div>
@@ -259,7 +272,7 @@ function AdminDashboard(){
           </div>
         ))}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:14,marginBottom:22}}>
+      <div className="week-dept-grid" style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:14,marginBottom:22}}>
         <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:18}}>
           <div style={{fontSize:10,letterSpacing:2,color:'var(--muted)',marginBottom:14,textTransform:'uppercase'}}>Fichajes esta semana</div>
           <div style={{display:'flex',alignItems:'flex-end',gap:8,height:72}}>
@@ -481,7 +494,7 @@ function AdminEmpleados({toast}){
         </div>
       )}
       {loading?<Loading/>:(
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:12}}>
+        <div className="emp-grid" style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(230px,1fr))',gap:12}}>
           {emps.map((e,i)=>(
             <div key={e.id} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:16}}>
               <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
@@ -602,9 +615,9 @@ function Empleado({user,onLogout,toast}){
   ];
 
   return(
-    <div style={{display:'flex',minHeight:'100vh'}}>
-      <aside style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
-        <div style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
+    <div className="shell" style={{display:'flex',minHeight:'100vh'}}>
+      <aside className="sidebar" style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div className="sidebar-header" style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Empleado</div>
           <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
           <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
@@ -617,7 +630,7 @@ function Empleado({user,onLogout,toast}){
             }}>{checkedIn?'En oficina':'Fuera'}</span>
           </div>
         </div>
-        <nav style={{flex:1,padding:'10px 0'}}>
+        <nav className="sidebar-nav" style={{flex:1,padding:'10px 0'}}>
           {tabs.map(t=>(
             <button key={t.id} onClick={()=>setTab(t.id)} style={{
               display:'block',width:'100%',padding:'10px 18px',
@@ -629,11 +642,11 @@ function Empleado({user,onLogout,toast}){
             }}>{t.label}</button>
           ))}
         </nav>
-        <button onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
+        <button className="sidebar-logout" onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
           Cerrar sesión
         </button>
       </aside>
-      <main style={{flex:1,overflow:'auto',padding:26}}>
+      <main className="main-content" style={{flex:1,overflow:'auto',padding:26}}>
         {tab==='fichar'&&<EmpFichar user={user} checkedIn={checkedIn} fichajeHoy={fichajeHoy} onAction={checkStatus} toast={toast}/>}
         {tab==='historial'&&<EmpHistorial user={user}/>}
         {tab==='ausencias'&&<EmpAusencias user={user} toast={toast}/>}
