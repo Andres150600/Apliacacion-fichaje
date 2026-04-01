@@ -28,19 +28,23 @@ input:focus,select:focus,textarea:focus{border-color:var(--accent)}
 button{cursor:pointer;font-family:inherit;border-radius:var(--r);border:none;font-size:13px}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:var(--border)}
-@media(max-width:600px){
+@media(max-width:768px){
   .shell{flex-direction:column!important}
-  .sidebar{width:100%!important;flex-direction:row!important;flex-wrap:wrap;border-right:none!important;border-bottom:1px solid var(--border)!important}
-  .sidebar-header{padding:12px 16px!important;border-bottom:none!important;min-width:120px}
-  .sidebar-nav{display:flex!important;flex-direction:row!important;flex-wrap:wrap;padding:4px 8px!important;flex:1}
-  .sidebar-nav button{padding:8px 10px!important;font-size:10px!important;border-left:none!important;border-bottom:2px solid transparent!important;white-space:nowrap}
-  .sidebar-logout{padding:8px 12px!important;border-top:none!important;border-left:1px solid var(--border)!important;font-size:10px!important}
+  .sidebar{width:100%!important;flex-direction:column!important;border-right:none!important;border-bottom:1px solid var(--border)!important;position:relative!important}
+  .sidebar-header{display:flex!important;align-items:center!important;justify-content:space-between!important;padding:12px 16px!important;border-bottom:none!important;cursor:pointer}
+  .sidebar-nav{display:none!important;flex-direction:column!important;padding:4px 0!important;border-top:1px solid var(--border)}
+  .sidebar-nav.open{display:flex!important}
+  .sidebar-logout{display:none!important}
+  .sidebar-logout.open{display:block!important;border-top:1px solid var(--border)!important;padding:12px 16px!important}
   .main-content{padding:16px!important}
   .stat-grid{grid-template-columns:repeat(2,1fr)!important}
   .week-dept-grid{grid-template-columns:1fr!important}
   .emp-grid{grid-template-columns:1fr!important}
   .doc-grid{grid-template-columns:1fr!important}
+  .hamburger{display:flex!important}
 }
+.hamburger{display:none;flex-direction:column;gap:4px;cursor:pointer;padding:4px}
+.hamburger span{width:20px;height:2px;background:var(--accent);border-radius:2px;display:block}
 </style>
 </head>
 <body>
@@ -154,6 +158,7 @@ function Login({onLogin,toast}){
 // ── Admin Shell ───────────────────────────────────────────────────
 function Admin({user,onLogout,toast}){
   const [tab,setTab]=useState('dashboard');
+  const [menuOpen,setMenuOpen]=useState(false);
   const tabs=[
     {id:'dashboard',label:'Panel'},
     {id:'fichajes',label:'Fichajes'},
@@ -170,14 +175,17 @@ function Admin({user,onLogout,toast}){
   return(
     <div className="shell" style={{display:'flex',minHeight:'100vh'}}>
       <aside className="sidebar" style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
-        <div className="sidebar-header" style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
-          <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Admin</div>
-          <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
-          <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
+        <div className="sidebar-header" style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}} onClick={()=>setMenuOpen(o=>!o)}>
+          <div>
+            <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Admin</div>
+            <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
+            <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
+          </div>
+          <div className="hamburger"><span/><span/><span/></div>
         </div>
-        <nav className="sidebar-nav" style={{flex:1,padding:'10px 0'}}>
+        <nav className={`sidebar-nav${menuOpen?' open':''}`} style={{flex:1,padding:'10px 0'}}>
           {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{
+            <button key={t.id} onClick={()=>{setTab(t.id);setMenuOpen(false)}} style={{
               display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 18px',
               background:tab===t.id?'var(--surface2)':'transparent',
               color:tab===t.id?'var(--accent)':'var(--muted)',textAlign:'left',
@@ -192,7 +200,7 @@ function Admin({user,onLogout,toast}){
             </button>
           ))}
         </nav>
-        <button className="sidebar-logout" onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
+        <button className={`sidebar-logout${menuOpen?' open':''}`} onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
           Cerrar sesión
         </button>
       </aside>
@@ -594,6 +602,7 @@ function AdminDocumentos({toast}){
 // ── Empleado Shell ────────────────────────────────────────────────
 function Empleado({user,onLogout,toast}){
   const [tab,setTab]=useState('fichar');
+  const [menuOpen,setMenuOpen]=useState(false);
   const [checkedIn,setCheckedIn]=useState(false);
   const [fichajeHoy,setFichajeHoy]=useState(null);
 
@@ -617,22 +626,20 @@ function Empleado({user,onLogout,toast}){
   return(
     <div className="shell" style={{display:'flex',minHeight:'100vh'}}>
       <aside className="sidebar" style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
-        <div className="sidebar-header" style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
-          <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Empleado</div>
-          <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
-          <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
-          <div style={{marginTop:10}}>
-            <span style={{
-              fontSize:10,padding:'3px 8px',borderRadius:10,letterSpacing:1,textTransform:'uppercase',
-              background:checkedIn?'rgba(143,184,160,0.2)':'rgba(255,255,255,0.05)',
-              color:checkedIn?'var(--accent2)':'var(--muted)',
-              border:`1px solid ${checkedIn?'var(--accent2)':'var(--border)'}`
-            }}>{checkedIn?'En oficina':'Fuera'}</span>
+        <div className="sidebar-header" style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}} onClick={()=>setMenuOpen(o=>!o)}>
+          <div>
+            <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Empleado</div>
+            <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
+            <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
+            <div style={{marginTop:6}}>
+              <span style={{fontSize:10,padding:'3px 8px',borderRadius:10,letterSpacing:1,textTransform:'uppercase',background:checkedIn?'rgba(143,184,160,0.2)':'rgba(255,255,255,0.05)',color:checkedIn?'var(--accent2)':'var(--muted)',border:`1px solid ${checkedIn?'var(--accent2)':'var(--border)'}`}}>{checkedIn?'En oficina':'Fuera'}</span>
+            </div>
           </div>
+          <div className="hamburger"><span/><span/><span/></div>
         </div>
-        <nav className="sidebar-nav" style={{flex:1,padding:'10px 0'}}>
+        <nav className={`sidebar-nav${menuOpen?' open':''}`} style={{flex:1,padding:'10px 0'}}>
           {tabs.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{
+            <button key={t.id} onClick={()=>{setTab(t.id);setMenuOpen(false)}} style={{
               display:'block',width:'100%',padding:'10px 18px',
               background:tab===t.id?'var(--surface2)':'transparent',
               color:tab===t.id?'var(--accent)':'var(--muted)',textAlign:'left',
@@ -642,7 +649,7 @@ function Empleado({user,onLogout,toast}){
             }}>{t.label}</button>
           ))}
         </nav>
-        <button className="sidebar-logout" onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
+        <button className={`sidebar-logout${menuOpen?' open':''}`} onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>
           Cerrar sesión
         </button>
       </aside>
