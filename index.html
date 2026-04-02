@@ -47,7 +47,7 @@ const {useState,useEffect,useCallback}=React;
 const SUPABASE_URL='https://wcqjdnrcqgokcyyhvjhc.supabase.co';
 const SUPABASE_KEY='sb_publishable_ArOQhPXl7zgWYiPnq80zwQ_BuRu3zL6';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-const MOBILE_BREAKPOINT=768;
+const MOBILE_BREAKPOINT=1400;
 
 // ── Helpers ──────────────────────────────────────────────────────
 const fmt=d=>d?new Date(d).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'--';
