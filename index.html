@@ -29,22 +29,13 @@ button{cursor:pointer;font-family:inherit;border-radius:var(--r);border:none;fon
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-thumb{background:var(--border)}
 @media(max-width:768px){
-  .shell{flex-direction:column!important}
-  .sidebar{width:100%!important;flex-direction:column!important;border-right:none!important;border-bottom:1px solid var(--border)!important;position:relative!important}
-  .sidebar-header{display:flex!important;align-items:center!important;justify-content:space-between!important;padding:12px 16px!important;border-bottom:none!important;cursor:pointer}
-  .sidebar-nav{display:none!important;flex-direction:column!important;padding:4px 0!important;border-top:1px solid var(--border)}
-  .sidebar-nav.open{display:flex!important}
-  .sidebar-logout{display:none!important}
-  .sidebar-logout.open{display:block!important;border-top:1px solid var(--border)!important;padding:12px 16px!important}
-  .main-content{padding:16px!important}
   .stat-grid{grid-template-columns:repeat(2,1fr)!important}
   .week-dept-grid{grid-template-columns:1fr!important}
   .emp-grid{grid-template-columns:1fr!important}
   .doc-grid{grid-template-columns:1fr!important}
-  .hamburger{display:flex!important}
+  .mobile-1col{grid-template-columns:1fr!important}
+  table{min-width:650px}
 }
-.hamburger{display:none;flex-direction:column;gap:4px;cursor:pointer;padding:4px}
-.hamburger span{width:20px;height:2px;background:var(--accent);border-radius:2px;display:block}
 </style>
 </head>
 <body>
@@ -54,8 +45,9 @@ const {useState,useEffect,useCallback}=React;
 
 // ── Supabase client ──────────────────────────────────────────────
 const SUPABASE_URL='https://wcqjdnrcqgokcyyhvjhc.supabase.co';
-const SUPABASE_KEY='sb_secret_eyIWsS4pJQx8TtKOAwQJxA_GJnssG9P';
+const SUPABASE_KEY='sb_publishable_ArOQhPXl7zgWYiPnq80zwQ_BuRu3zL6';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const MOBILE_BREAKPOINT=768;
 
 // ── Helpers ──────────────────────────────────────────────────────
 const fmt=d=>d?new Date(d).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}):'--';
@@ -159,7 +151,7 @@ function Login({onLogin,toast}){
 function Admin({user,onLogout,toast}){
   const [tab,setTab]=useState('dashboard');
   const [menuOpen,setMenuOpen]=useState(false);
-  const [isMobile,setIsMobile]=useState(window.innerWidth<=1024);
+  const [isMobile,setIsMobile]=useState(window.innerWidth<=MOBILE_BREAKPOINT);
   const tabs=[
     {id:'dashboard',label:'Panel'},
     {id:'fichajes',label:'Fichajes'},
@@ -170,10 +162,98 @@ function Admin({user,onLogout,toast}){
   const [pendientes,setPendientes]=useState(0);
 
   useEffect(()=>{
-    const handle=()=>setIsMobile(window.innerWidth<=1024);
+    const handle=()=>setIsMobile(window.innerWidth<=MOBILE_BREAKPOINT);
     window.addEventListener('resize',handle);
     return()=>window.removeEventListener('resize',handle);
   },[]);
+
+  useEffect(()=>{
+    sb.from('ausencias').select('id',{count:'exact'}).eq('estado','pendiente')
+      .then(({count})=>setPendientes(count||0));
+  },[tab]);
+
+  const changeTab=t=>{setTab(t);setMenuOpen(false)};
+
+  if(isMobile) return(
+    <div style={{minHeight:'100vh',position:'relative',background:'var(--bg)'}}>
+      <div style={{height:60,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px',background:'var(--surface)',borderBottom:'1px solid var(--border)',position:'sticky',top:0,zIndex:20}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button onClick={()=>setMenuOpen(true)} style={{background:'transparent',border:'none',display:'flex',flexDirection:'column',gap:4,padding:4}}>
+            <span style={{width:22,height:2,background:'var(--accent)',display:'block'}}/>
+            <span style={{width:22,height:2,background:'var(--accent)',display:'block'}}/>
+            <span style={{width:22,height:2,background:'var(--accent)',display:'block'}}/>
+          </button>
+          <Av name={user.nombre} size={32}/>
+          <div>
+            <div style={{fontSize:13,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
+            <div style={{fontSize:10,color:'var(--accent)',letterSpacing:2,textTransform:'uppercase'}}>Admin</div>
+          </div>
+        </div>
+      </div>
+      {menuOpen&&(
+        <>
+          <div onClick={()=>setMenuOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:29}}/>
+          <aside style={{position:'fixed',top:0,left:0,width:260,height:'100vh',background:'var(--surface)',borderRight:'1px solid var(--border)',zIndex:30,display:'flex',flexDirection:'column'}}>
+            <div style={{padding:'20px 16px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <Av name={user.nombre} size={34}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:'bold'}}>{user.nombre}</div>
+                  <div style={{fontSize:10,color:'var(--accent)',letterSpacing:2,textTransform:'uppercase'}}>Administrador</div>
+                </div>
+              </div>
+              <button onClick={()=>setMenuOpen(false)} style={{background:'transparent',border:'none',color:'var(--danger)',fontSize:22,lineHeight:1}}>×</button>
+            </div>
+            <nav style={{flex:1,padding:'10px 0'}}>
+              {tabs.map(t=>(
+                <button key={t.id} onClick={()=>changeTab(t.id)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'13px 16px',background:tab===t.id?'var(--surface2)':'transparent',color:tab===t.id?'var(--accent)':'var(--muted)',textAlign:'left',fontSize:12,letterSpacing:2,textTransform:'uppercase',borderLeft:tab===t.id?'3px solid var(--accent)':'3px solid transparent',borderRight:'none',borderTop:'none',borderBottom:'1px solid var(--border)'}}>
+                  {t.label}
+                  {t.id==='ausencias'&&pendientes>0&&<span style={{background:'var(--danger)',color:'#fff',borderRadius:10,fontSize:10,padding:'2px 7px'}}>{pendientes}</span>}
+                </button>
+              ))}
+            </nav>
+            <button onClick={onLogout} style={{width:'100%',padding:'14px 16px',background:'transparent',color:'var(--danger)',fontSize:12,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>Cerrar sesión</button>
+          </aside>
+        </>
+      )}
+      <main style={{padding:16}}>
+        {tab==='dashboard'&&<AdminDashboard/>}
+        {tab==='fichajes'&&<AdminFichajes toast={toast}/>}
+        {tab==='ausencias'&&<AdminAusencias toast={toast}/>}
+        {tab==='empleados'&&<AdminEmpleados toast={toast}/>}
+        {tab==='documentos'&&<AdminDocumentos toast={toast}/>}
+      </main>
+    </div>
+  );
+
+  return(
+    <div style={{display:'flex',minHeight:'100vh'}}>
+      <aside style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
+          <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Admin</div>
+          <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
+          <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
+        </div>
+        <nav style={{flex:1,padding:'10px 0'}}>
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'10px 18px',background:tab===t.id?'var(--surface2)':'transparent',color:tab===t.id?'var(--accent)':'var(--muted)',textAlign:'left',fontSize:11,letterSpacing:2,textTransform:'uppercase',borderLeft:tab===t.id?'2px solid var(--accent)':'2px solid transparent',borderRight:'none',borderTop:'none',borderBottom:'none'}}>
+              {t.label}
+              {t.id==='ausencias'&&pendientes>0&&(<span style={{background:'var(--danger)',color:'#fff',borderRadius:10,fontSize:10,padding:'1px 6px',marginLeft:'auto'}}>{pendientes}</span>)}
+            </button>
+          ))}
+        </nav>
+        <button onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>Cerrar sesión</button>
+      </aside>
+      <main style={{flex:1,overflow:'auto',padding:26}}>
+        {tab==='dashboard'&&<AdminDashboard/>}
+        {tab==='fichajes'&&<AdminFichajes toast={toast}/>}
+        {tab==='ausencias'&&<AdminAusencias toast={toast}/>}
+        {tab==='empleados'&&<AdminEmpleados toast={toast}/>}
+        {tab==='documentos'&&<AdminDocumentos toast={toast}/>}
+      </main>
+    </div>
+  );
+}
 
   useEffect(()=>{
     sb.from('ausencias').select('id',{count:'exact'}).eq('estado','pendiente')
@@ -545,7 +625,7 @@ function AdminEmpleados({toast}){
       {show&&(
         <div style={{background:'var(--surface)',border:'1px solid var(--accent)',borderRadius:8,padding:18,marginBottom:18}}>
           <div style={{fontSize:10,letterSpacing:2,color:'var(--accent)',marginBottom:14,textTransform:'uppercase'}}>Nuevo empleado</div>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
+          <div className="mobile-1col" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}}>
             {[['nombre','Nombre completo'],['email','Email'],['cargo','Cargo'],['departamento','Departamento'],['pin','PIN (4-6 dígitos)']].map(([k,p])=>(
               <input key={k} placeholder={p} value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} maxLength={k==='pin'?6:undefined}/>
             ))}
@@ -614,7 +694,7 @@ function AdminDocumentos({toast}){
       </SH>
       {show&&(
         <div style={{background:'var(--surface)',border:'1px solid var(--accent)',borderRadius:8,padding:18,marginBottom:18}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+          <div className="mobile-1col" style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
             <select value={form.empleado_id} onChange={e=>setForm(f=>({...f,empleado_id:e.target.value}))}>
               <option value=''>Empleado...</option>
               {emps.map(e=><option key={e.id} value={e.id}>{e.nombre}</option>)}
@@ -658,9 +738,104 @@ function AdminDocumentos({toast}){
 function Empleado({user,onLogout,toast}){
   const [tab,setTab]=useState('fichar');
   const [menuOpen,setMenuOpen]=useState(false);
-  const [isMobile,setIsMobile]=useState(window.innerWidth<=1024);
+  const [isMobile,setIsMobile]=useState(window.innerWidth<=MOBILE_BREAKPOINT);
   const [checkedIn,setCheckedIn]=useState(false);
   const [fichajeHoy,setFichajeHoy]=useState(null);
+
+  useEffect(()=>{
+    const handle=()=>setIsMobile(window.innerWidth<=MOBILE_BREAKPOINT);
+    window.addEventListener('resize',handle);
+    return()=>window.removeEventListener('resize',handle);
+  },[]);
+
+  const checkStatus=useCallback(()=>{
+    sb.from('fichajes').select('*').eq('empleado_id',user.id).eq('fecha',today()).maybeSingle()
+      .then(({data})=>{setFichajeHoy(data);setCheckedIn(!!(data&&data.entrada&&!data.salida));});
+  },[user.id]);
+
+  useEffect(checkStatus,[checkStatus]);
+
+  const tabs=[
+    {id:'fichar',label:'Fichar'},
+    {id:'historial',label:'Historial'},
+    {id:'ausencias',label:'Ausencias'},
+    {id:'documentos',label:'Documentos'},
+  ];
+
+  const changeTab=t=>{setTab(t);setMenuOpen(false)};
+
+  const mainContent=(padding)=>(
+    <main style={{flex:1,overflow:'auto',padding}}>
+      {tab==='fichar'&&<EmpFichar user={user} checkedIn={checkedIn} fichajeHoy={fichajeHoy} onAction={checkStatus} toast={toast}/>}
+      {tab==='historial'&&<EmpHistorial user={user}/>}
+      {tab==='ausencias'&&<EmpAusencias user={user} toast={toast}/>}
+      {tab==='documentos'&&<EmpDocumentos user={user} toast={toast}/>}
+    </main>
+  );
+
+  if(isMobile) return(
+    <div style={{minHeight:'100vh',position:'relative',background:'var(--bg)'}}>
+      <div style={{height:60,display:'flex',alignItems:'center',padding:'0 16px',background:'var(--surface)',borderBottom:'1px solid var(--border)',position:'sticky',top:0,zIndex:20,gap:10}}>
+        <button onClick={()=>setMenuOpen(true)} style={{background:'transparent',border:'none',display:'flex',flexDirection:'column',gap:4,padding:4}}>
+          <span style={{width:22,height:2,background:'var(--accent)',display:'block'}}/>
+          <span style={{width:22,height:2,background:'var(--accent)',display:'block'}}/>
+          <span style={{width:22,height:2,background:'var(--accent)',display:'block'}}/>
+        </button>
+        <Av name={user.nombre} size={32}/>
+        <div>
+          <div style={{fontSize:13,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
+          <span style={{fontSize:10,padding:'2px 7px',borderRadius:10,background:checkedIn?'rgba(143,184,160,0.2)':'rgba(255,255,255,0.05)',color:checkedIn?'var(--accent2)':'var(--muted)',border:`1px solid ${checkedIn?'var(--accent2)':'var(--border)'}`}}>{checkedIn?'En oficina':'Fuera'}</span>
+        </div>
+      </div>
+      {menuOpen&&(
+        <>
+          <div onClick={()=>setMenuOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:29}}/>
+          <aside style={{position:'fixed',top:0,left:0,width:260,height:'100vh',background:'var(--surface)',borderRight:'1px solid var(--border)',zIndex:30,display:'flex',flexDirection:'column'}}>
+            <div style={{padding:'20px 16px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:4,textTransform:'uppercase'}}>Empleado</div>
+                <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre}</div>
+                <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
+              </div>
+              <button onClick={()=>setMenuOpen(false)} style={{background:'transparent',border:'none',color:'var(--danger)',fontSize:22,lineHeight:1}}>×</button>
+            </div>
+            <nav style={{flex:1,padding:'10px 0'}}>
+              {tabs.map(t=>(
+                <button key={t.id} onClick={()=>changeTab(t.id)} style={{display:'block',width:'100%',padding:'13px 16px',background:tab===t.id?'var(--surface2)':'transparent',color:tab===t.id?'var(--accent)':'var(--muted)',textAlign:'left',fontSize:12,letterSpacing:2,textTransform:'uppercase',borderLeft:tab===t.id?'3px solid var(--accent)':'3px solid transparent',borderRight:'none',borderTop:'none',borderBottom:'1px solid var(--border)'}}>
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+            <button onClick={onLogout} style={{width:'100%',padding:'14px 16px',background:'transparent',color:'var(--danger)',fontSize:12,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>Cerrar sesión</button>
+          </aside>
+        </>
+      )}
+      {mainContent(16)}
+    </div>
+  );
+
+  return(
+    <div style={{display:'flex',minHeight:'100vh'}}>
+      <aside style={{width:190,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',flexShrink:0}}>
+        <div style={{padding:'22px 18px',borderBottom:'1px solid var(--border)'}}>
+          <div style={{fontSize:10,letterSpacing:3,color:'var(--accent)',marginBottom:3,textTransform:'uppercase'}}>Empleado</div>
+          <div style={{fontSize:14,fontWeight:'bold'}}>{user.nombre.split(' ')[0]}</div>
+          <div style={{fontSize:11,color:'var(--muted)',marginTop:2}}>{user.departamento}</div>
+          <div style={{marginTop:10}}>
+            <span style={{fontSize:10,padding:'3px 8px',borderRadius:10,letterSpacing:1,textTransform:'uppercase',background:checkedIn?'rgba(143,184,160,0.2)':'rgba(255,255,255,0.05)',color:checkedIn?'var(--accent2)':'var(--muted)',border:`1px solid ${checkedIn?'var(--accent2)':'var(--border)'}`}}>{checkedIn?'En oficina':'Fuera'}</span>
+          </div>
+        </div>
+        <nav style={{flex:1,padding:'10px 0'}}>
+          {tabs.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{display:'block',width:'100%',padding:'10px 18px',background:tab===t.id?'var(--surface2)':'transparent',color:tab===t.id?'var(--accent)':'var(--muted)',textAlign:'left',fontSize:11,letterSpacing:2,textTransform:'uppercase',borderLeft:tab===t.id?'2px solid var(--accent)':'2px solid transparent',borderRight:'none',borderTop:'none',borderBottom:'none'}}>{t.label}</button>
+          ))}
+        </nav>
+        <button onClick={onLogout} style={{padding:'13px 18px',background:'transparent',color:'var(--muted)',fontSize:11,letterSpacing:2,textTransform:'uppercase',textAlign:'left',borderTop:'1px solid var(--border)',borderLeft:'none',borderRight:'none',borderBottom:'none'}}>Cerrar sesión</button>
+      </aside>
+      {mainContent(26)}
+    </div>
+  );
+}
 
   useEffect(()=>{
     const handle=()=>setIsMobile(window.innerWidth<=1024);
@@ -878,7 +1053,7 @@ function EmpAusencias({user,toast}){
       </SH>
       {show&&(
         <div style={{background:'var(--surface)',border:'1px solid var(--accent)',borderRadius:8,padding:18,marginBottom:18}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
+          <div className="mobile-1col" style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:10}}>
             <select value={form.tipo} onChange={e=>setForm(f=>({...f,tipo:e.target.value}))}>
               {['Vacaciones','Enfermedad','Personal','Maternidad/Paternidad','Otro'].map(t=><option key={t}>{t}</option>)}
             </select>
