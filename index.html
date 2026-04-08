@@ -83,14 +83,15 @@ function Login({onLogin,toast,dark,toggleDark}){
   const [pin,setPin]=useState('');
   const [err,setErr]=useState('');
   const [loading,setLoading]=useState(false);
-  useEffect(()=>{sb.from('empleados').select('*').eq('activo',true).order('nombre').then(({data})=>setEmps(data||[]))},[]);
+  useEffect(()=>{sb.from('empleados').select('id,nombre,es_admin').eq('activo',true).order('nombre').then(({data})=>setEmps(data||[]))},[]);
   async function acceder(){
     if(!sel){setErr('Selecciona un empleado');return}
     if(!pin){setErr('Introduce tu PIN');return}
     setLoading(true);setErr('');
-    const emp=emps.find(e=>e.id===sel);
-    if(!emp||emp.pin!==pin){setErr('PIN incorrecto');setPin('');setLoading(false);return}
-    setLoading(false);onLogin(emp);
+    const {data,error}=await sb.rpc('verificar_pin',{p_id:sel,p_pin:pin});
+    setLoading(false);
+    if(error||!data?.ok){setErr('PIN incorrecto');setPin('');return}
+    onLogin({...data.empleado,_pin:pin});
   }
   return(
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:24}}>
@@ -172,7 +173,7 @@ function Admin({user,onLogout,toast,dark,toggleDark}){
         {tab==='dashboard'&&<AdminDashboard/>}
         {tab==='fichajes'&&<AdminFichajes toast={toast}/>}
         {tab==='ausencias'&&<AdminAusencias toast={toast}/>}
-        {tab==='empleados'&&<AdminEmpleados toast={toast}/>}
+        {tab==='empleados'&&<AdminEmpleados toast={toast} user={user}/>}
         {tab==='turnos'&&<AdminTurnos toast={toast}/>}
         {tab==='informes'&&<AdminInformes toast={toast}/>}
         {tab==='alertas'&&<AdminAlertas/>}
@@ -373,20 +374,28 @@ function AdminAusencias({toast}){
   );
 }
 
-function AdminEmpleados({toast}){
+function AdminEmpleados({toast,user}){
   const [emps,setEmps]=useState([]);
   const [show,setShow]=useState(false);
   const [form,setForm]=useState({nombre:'',email:'',cargo:'',departamento:'',pin:'',dias_vacaciones:22});
-  const load=useCallback(()=>{sb.from('empleados').select('*').eq('es_admin',false).order('nombre').then(({data})=>setEmps(data||[]))},[]);
+  const load=useCallback(()=>{sb.from('empleados').select('id,nombre,email,cargo,departamento,activo,dias_vacaciones,dias_usados').eq('es_admin',false).eq('activo',true).order('nombre').then(({data})=>setEmps(data||[]))},[]);
   useEffect(load,[load]);
   async function guardar(){
     if(!form.nombre||!form.email||!form.pin){toast('Nombre, email y PIN obligatorios','err');return}
-    const {error}=await sb.from('empleados').insert({...form,es_admin:false,activo:true,dias_usados:0});
-    if(error)toast('Error: '+error.message,'err');else{toast('Empleado añadido');setForm({nombre:'',email:'',cargo:'',departamento:'',pin:'',dias_vacaciones:22});setShow(false);load();}
+    const {data,error}=await sb.rpc('admin_crear_empleado',{
+      p_admin_id:user.id, p_admin_pin:user._pin,
+      p_nombre:form.nombre, p_email:form.email,
+      p_departamento:form.departamento, p_cargo:form.cargo,
+      p_pin:form.pin, p_dias_vacaciones:form.dias_vacaciones
+    });
+    if(error||!data?.ok)toast('Error: '+(data?.error||error?.message||'desconocido'),'err');
+    else{toast('Empleado añadido');setForm({nombre:'',email:'',cargo:'',departamento:'',pin:'',dias_vacaciones:22});setShow(false);load();}
   }
   async function eliminar(id){
     if(!confirm('¿Eliminar?'))return;
-    await sb.from('empleados').update({activo:false}).eq('id',id);toast('Eliminado');load();
+    const {data,error}=await sb.rpc('admin_desactivar_empleado',{p_admin_id:user.id,p_admin_pin:user._pin,p_emp_id:id});
+    if(error||!data?.ok)toast('Error: '+(data?.error||error?.message||'desconocido'),'err');
+    else{toast('Eliminado');load();}
   }
   return(
     <div>
