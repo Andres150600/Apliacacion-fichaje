@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { sb } from '../lib/supabase'
 import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, fmt, fmtDate, fmtDur, today, COLORS } from './shared'
 
@@ -169,14 +169,28 @@ function AdminFichajes({ toast }) {
     q.then(({ data }) => { setRows(data || []); setLoading(false) })
   }, [fE, fF])
 
-  function exportExcel() {
-    const data = [['Empleado', 'Fecha', 'Entrada', 'Salida', 'Total', 'Estado']]
-    rows.forEach(r => { data.push([r.empleados?.nombre || '-', r.fecha, fmt(r.entrada), r.salida ? fmt(r.salida) : '-', r.salida ? fmtDur(new Date(r.salida) - new Date(r.entrada)) : 'En curso', r.salida ? 'Completo' : 'En curso']) })
-    const ws = XLSX.utils.aoa_to_sheet(data)
-    ws['!cols'] = [{ wch: 22 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Fichajes')
-    XLSX.writeFile(wb, `fichajes_${today()}.xlsx`)
+  async function exportExcel() {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Fichajes')
+    ws.columns = [
+      { header: 'Empleado', width: 22 },
+      { header: 'Fecha', width: 12 },
+      { header: 'Entrada', width: 10 },
+      { header: 'Salida', width: 10 },
+      { header: 'Total', width: 12 },
+      { header: 'Estado', width: 12 },
+    ]
+    rows.forEach(r => ws.addRow([
+      r.empleados?.nombre || '-', r.fecha, fmt(r.entrada),
+      r.salida ? fmt(r.salida) : '-',
+      r.salida ? fmtDur(new Date(r.salida) - new Date(r.entrada)) : 'En curso',
+      r.salida ? 'Completo' : 'En curso'
+    ]))
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `fichajes_${today()}.xlsx`; a.click()
+    URL.revokeObjectURL(url)
     toast('Excel descargado')
   }
 
@@ -422,22 +436,35 @@ function AdminInformes({ toast }) {
     setPreview({ filas, mes: meses[mes], anio }); setLoading(false)
   }
 
-  function exportar(det) {
+  async function exportar(det) {
     if (!preview) return
-    let data, name, sheetName
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet(det ? 'Detallado' : 'Resumen')
     if (!det) {
-      data = [['Empleado', 'Departamento', 'Días trabajados', 'Horas totales', 'Ausencias aprobadas', 'Ausencias pendientes'], ...preview.filas.map(f => [f.nombre, f.dept, f.dias, f.horas, f.ausAp, f.ausPe])]
-      name = `resumen_${preview.mes}_${preview.anio}.xlsx`; sheetName = 'Resumen'
+      ws.columns = [
+        { header: 'Empleado', width: 22 }, { header: 'Departamento', width: 14 },
+        { header: 'Días trabajados', width: 14 }, { header: 'Horas totales', width: 14 },
+        { header: 'Ausencias aprobadas', width: 18 }, { header: 'Ausencias pendientes', width: 18 },
+      ]
+      preview.filas.forEach(f => ws.addRow([f.nombre, f.dept, f.dias, f.horas, f.ausAp, f.ausPe]))
     } else {
-      const r = []; preview.filas.forEach(f => f.fichajes.forEach(fi => r.push([f.nombre, f.dept, fi.fecha, fmt(fi.entrada), fi.salida ? fmt(fi.salida) : '-', fi.salida ? fmtDur(new Date(fi.salida) - new Date(fi.entrada)) : '-'])))
-      data = [['Empleado', 'Departamento', 'Fecha', 'Entrada', 'Salida', 'Total'], ...r]
-      name = `detallado_${preview.mes}_${preview.anio}.xlsx`; sheetName = 'Detallado'
+      ws.columns = [
+        { header: 'Empleado', width: 22 }, { header: 'Departamento', width: 14 },
+        { header: 'Fecha', width: 12 }, { header: 'Entrada', width: 10 },
+        { header: 'Salida', width: 10 }, { header: 'Total', width: 12 },
+      ]
+      preview.filas.forEach(f => f.fichajes.forEach(fi => ws.addRow([
+        f.nombre, f.dept, fi.fecha, fmt(fi.entrada),
+        fi.salida ? fmt(fi.salida) : '-',
+        fi.salida ? fmtDur(new Date(fi.salida) - new Date(fi.entrada)) : '-'
+      ])))
     }
-    const ws = XLSX.utils.aoa_to_sheet(data)
-    ws['!cols'] = det ? [{ wch: 22 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }] : [{ wch: 22 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 18 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, sheetName)
-    XLSX.writeFile(wb, name)
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const name = det ? `detallado_${preview.mes}_${preview.anio}.xlsx` : `resumen_${preview.mes}_${preview.anio}.xlsx`
+    const a = document.createElement('a'); a.href = url; a.download = name; a.click()
+    URL.revokeObjectURL(url)
     toast('Excel descargado')
   }
 
