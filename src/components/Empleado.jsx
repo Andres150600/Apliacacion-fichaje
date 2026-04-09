@@ -128,10 +128,21 @@ function EmpFichar({ user, token, checkedIn, fichajeHoy, onAction, toast }) {
           <button onClick={() => fichar('entrada')} disabled={checkedIn || loading} style={{ padding: '14px 36px', fontSize: 13, letterSpacing: 3, textTransform: 'uppercase', fontWeight: 'bold', background: checkedIn ? 'var(--surface2)' : 'var(--accent2)', color: checkedIn ? 'var(--muted)' : '#0f0f0f', borderRadius: 4, cursor: checkedIn ? 'not-allowed' : 'pointer' }}>↑ Entrada</button>
           <button onClick={() => fichar('salida')} disabled={!checkedIn || loading} style={{ padding: '14px 36px', fontSize: 13, letterSpacing: 3, textTransform: 'uppercase', fontWeight: 'bold', background: !checkedIn ? 'var(--surface2)' : 'var(--danger)', color: !checkedIn ? 'var(--muted)' : '#fff', borderRadius: 4, cursor: !checkedIn ? 'not-allowed' : 'pointer' }}>↓ Salida</button>
         </div>
-        {fichajeHoy && (
+        {fichajeHoy?.entrada && !fichajeHoy.salida && (
+          <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 28, fontWeight: 'bold', color: 'var(--accent2)', fontVariantNumeric: 'tabular-nums', letterSpacing: 2 }}>
+              {fmtDur(now - new Date(fichajeHoy.entrada))}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: 2, textTransform: 'uppercase', marginTop: 2 }}>
+              Tiempo trabajado · Entrada: <span style={{ color: 'var(--accent2)' }}>{fmt(fichajeHoy.entrada)}</span>
+            </div>
+          </div>
+        )}
+        {fichajeHoy?.salida && (
           <div style={{ marginTop: 18, fontSize: 12, color: 'var(--muted)' }}>
             Entrada: <span style={{ color: 'var(--accent2)' }}>{fmt(fichajeHoy.entrada)}</span>
-            {fichajeHoy.salida && <> · Salida: <span style={{ color: 'var(--danger)' }}>{fmt(fichajeHoy.salida)}</span> · Total: <span style={{ color: 'var(--accent)' }}>{fmtDur(new Date(fichajeHoy.salida) - new Date(fichajeHoy.entrada))}</span></>}
+            {' · '}Salida: <span style={{ color: 'var(--danger)' }}>{fmt(fichajeHoy.salida)}</span>
+            {' · '}Total: <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{fmtDur(new Date(fichajeHoy.salida) - new Date(fichajeHoy.entrada))}</span>
           </div>
         )}
       </div>
