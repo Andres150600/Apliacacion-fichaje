@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 // Utilidades
 export const fmt = d => d ? new Date(d).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '--'
 export const fmtDate = d => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }) : '--'
@@ -82,6 +84,41 @@ export function TopBar({ user, dark, toggleDark, onLogout, isAdmin, checkedIn })
         </div>
       </div>
       <button onClick={toggleDark} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 12, fontSize: 11 }}>{dark ? '☀' : '☾'}</button>
+    </div>
+  )
+}
+
+export function PinModal({ titulo, onConfirm, onCancel }) {
+  const [pin, setPin] = useState('')
+  const [err, setErr] = useState('')
+
+  function confirmar() {
+    if (!pin) { setErr('Introduce tu PIN'); return }
+    onConfirm(pin)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 28, width: '100%', maxWidth: 340 }}>
+        <div style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Confirmar acción</div>
+        <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 20 }}>{titulo}</div>
+        <label style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Tu PIN</label>
+        <input
+          type='password'
+          value={pin}
+          onChange={e => { setPin(e.target.value); setErr('') }}
+          onKeyDown={e => e.key === 'Enter' && confirmar()}
+          placeholder='••••'
+          maxLength={6}
+          autoFocus
+          style={{ marginBottom: 8 }}
+        />
+        {err && <div style={{ color: 'var(--danger)', fontSize: 12, marginBottom: 8 }}>{err}</div>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <Btn label='Confirmar' onClick={confirmar} />
+          <Btn label='Cancelar' ghost onClick={onCancel} />
+        </div>
+      </div>
     </div>
   )
 }

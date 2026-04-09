@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import ExcelJS from 'exceljs'
 import { sb } from '../lib/supabase'
-import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, fmt, fmtDate, fmtDur, today, COLORS } from './shared'
+import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, PinModal, fmt, fmtDate, fmtDur, today, COLORS } from './shared'
 
 export default function Admin({ user, onLogout, toast, dark, toggleDark }) {
   const [tab, setTab] = useState('dashboard')
@@ -51,9 +51,9 @@ export default function Admin({ user, onLogout, toast, dark, toggleDark }) {
         <TopBar user={user} dark={dark} toggleDark={toggleDark} onLogout={onLogout} isAdmin={true} />
         {tab === 'dashboard' && <AdminDashboard />}
         {tab === 'fichajes' && <AdminFichajes toast={toast} />}
-        {tab === 'ausencias' && <AdminAusencias toast={toast} />}
+        {tab === 'ausencias' && <AdminAusencias toast={toast} user={user} />}
         {tab === 'empleados' && <AdminEmpleados toast={toast} user={user} />}
-        {tab === 'turnos' && <AdminTurnos toast={toast} />}
+        {tab === 'turnos' && <AdminTurnos toast={toast} user={user} />}
         {tab === 'informes' && <AdminInformes toast={toast} />}
         {tab === 'alertas' && <AdminAlertas />}
       </main>
@@ -163,7 +163,7 @@ function AdminFichajes({ toast }) {
 
   useEffect(() => {
     setLoading(true)
-    let q = sb.from('fichajes').select('*,empleados(nombre)').order('created_at', { ascending: false })
+    let q = sb.from('fichajes').select('id,empleado_id,fecha,entrada,salida,created_at,empleados(nombre)').order('created_at', { ascending: false })
     if (fE) q = q.eq('empleado_id', fE)
     if (fF) q = q.eq('fecha', fF)
     q.then(({ data }) => { setRows(data || []); setLoading(false) })
@@ -227,20 +227,29 @@ function AdminFichajes({ toast }) {
   )
 }
 
-function AdminAusencias({ toast }) {
+function AdminAusencias({ toast, user }) {
   const [rows, setRows] = useState([])
+  const [modal, setModal] = useState(null) // { id, estado }
   const load = useCallback(() => {
-    sb.from('ausencias').select('*,empleados(nombre)').order('created_at', { ascending: false }).then(({ data }) => setRows(data || []))
+    sb.from('ausencias').select('id,tipo,desde,hasta,motivo,estado,created_at,empleados(nombre)').order('created_at', { ascending: false }).then(({ data }) => setRows(data || []))
   }, [])
   useEffect(load, [load])
 
-  async function cambiar(id, estado) {
-    await sb.from('ausencias').update({ estado }).eq('id', id)
-    toast(estado === 'aprobada' ? 'Aprobada' : 'Rechazada'); load()
+  function cambiar(id, estado) {
+    setModal({ id, estado })
+  }
+
+  async function confirmarCambio(adminPin) {
+    const { id, estado } = modal
+    setModal(null)
+    const { data, error } = await sb.rpc('admin_cambiar_ausencia', { p_admin_id: user.id, p_admin_pin: adminPin, p_aus_id: id, p_estado: estado })
+    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
+    else { toast(estado === 'aprobada' ? 'Aprobada' : 'Rechazada'); load() }
   }
 
   return (
     <div>
+      {modal && <PinModal titulo={`Confirma tu PIN para ${modal.estado === 'aprobada' ? 'aprobar' : 'rechazar'} la ausencia`} onConfirm={confirmarCambio} onCancel={() => setModal(null)} />}
       <SH title='Ausencias' sub={`${rows.filter(r => r.estado === 'pendiente').length} pendientes`} />
       <Tabla cols={['Empleado', 'Tipo', 'Desde', 'Hasta', 'Motivo', 'Estado', '']}>
         {rows.map(a => (
@@ -271,6 +280,7 @@ function AdminEmpleados({ toast, user }) {
   const [emps, setEmps] = useState([])
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 22 })
+  const [modal, setModal] = useState(null) // { accion: 'crear' | 'eliminar', empId? }
   const load = useCallback(() => {
     sb.from('empleados').select('id,nombre,email,cargo,departamento,activo,dias_vacaciones,dias_usados').eq('es_admin', false).eq('activo', true).order('nombre').then(({ data }) => setEmps(data || []))
   }, [])
@@ -278,8 +288,13 @@ function AdminEmpleados({ toast, user }) {
 
   async function guardar() {
     if (!form.nombre || !form.email || !form.pin) { toast('Nombre, email y PIN obligatorios', 'err'); return }
+    setModal({ accion: 'crear' })
+  }
+
+  async function confirmarGuardar(adminPin) {
+    setModal(null)
     const { data, error } = await sb.rpc('admin_crear_empleado', {
-      p_admin_id: user.id, p_admin_pin: user._pin,
+      p_admin_id: user.id, p_admin_pin: adminPin,
       p_nombre: form.nombre, p_email: form.email,
       p_departamento: form.departamento, p_cargo: form.cargo,
       p_pin: form.pin, p_dias_vacaciones: form.dias_vacaciones
@@ -288,15 +303,22 @@ function AdminEmpleados({ toast, user }) {
     else { toast('Empleado añadido'); setForm({ nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 22 }); setShow(false); load() }
   }
 
-  async function eliminar(id) {
-    if (!confirm('¿Eliminar?')) return
-    const { data, error } = await sb.rpc('admin_desactivar_empleado', { p_admin_id: user.id, p_admin_pin: user._pin, p_emp_id: id })
+  function eliminar(id) {
+    setModal({ accion: 'eliminar', empId: id })
+  }
+
+  async function confirmarEliminar(adminPin) {
+    const id = modal.empId
+    setModal(null)
+    const { data, error } = await sb.rpc('admin_desactivar_empleado', { p_admin_id: user.id, p_admin_pin: adminPin, p_emp_id: id })
     if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
     else { toast('Eliminado'); load() }
   }
 
   return (
     <div>
+      {modal?.accion === 'crear' && <PinModal titulo='Confirma tu PIN para crear el empleado' onConfirm={confirmarGuardar} onCancel={() => setModal(null)} />}
+      {modal?.accion === 'eliminar' && <PinModal titulo='Confirma tu PIN para eliminar el empleado' onConfirm={confirmarEliminar} onCancel={() => setModal(null)} />}
       <SH title='Empleados' sub={`${emps.length} registrados`}><Btn label='+ Añadir' onClick={() => setShow(!show)} /></SH>
       {show && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 18 }}>
@@ -332,31 +354,49 @@ function AdminEmpleados({ toast, user }) {
   )
 }
 
-function AdminTurnos({ toast }) {
+function AdminTurnos({ toast, user }) {
   const [turnos, setTurnos] = useState([])
   const [emps, setEmps] = useState([])
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ nombre: '', hora_entrada: '08:00', hora_salida: '17:00', empleado_id: '', dias_semana: [1, 2, 3, 4, 5] })
+  const [modal, setModal] = useState(null) // { accion: 'crear' | 'eliminar', turnoId? }
   const DIAS = [{ n: 'L', v: 1 }, { n: 'M', v: 2 }, { n: 'X', v: 3 }, { n: 'J', v: 4 }, { n: 'V', v: 5 }, { n: 'S', v: 6 }, { n: 'D', v: 0 }]
 
   const load = useCallback(() => {
     Promise.all([
-      sb.from('turnos').select('*,empleados(nombre)').eq('activo', true).order('created_at', { ascending: false }),
+      sb.from('turnos').select('id,nombre,hora_entrada,hora_salida,dias_semana,empleados(nombre)').eq('activo', true).order('created_at', { ascending: false }),
       sb.from('empleados').select('id,nombre').eq('es_admin', false).eq('activo', true).order('nombre')
     ]).then(([t, e]) => { setTurnos(t.data || []); setEmps(e.data || []) })
   }, [])
   useEffect(load, [load])
 
-  async function guardar() {
+  function guardar() {
     if (!form.nombre || !form.empleado_id) { toast('Nombre y empleado obligatorios', 'err'); return }
-    const { error } = await sb.from('turnos').insert({ ...form, activo: true })
-    if (error) toast('Error: ' + error.message, 'err')
+    setModal({ accion: 'crear' })
+  }
+
+  async function confirmarGuardar(adminPin) {
+    setModal(null)
+    const { data, error } = await sb.rpc('admin_crear_turno', {
+      p_admin_id: user.id, p_admin_pin: adminPin,
+      p_nombre: form.nombre, p_empleado_id: form.empleado_id,
+      p_hora_entrada: form.hora_entrada, p_hora_salida: form.hora_salida,
+      p_dias_semana: form.dias_semana
+    })
+    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
     else { toast('Turno creado'); setForm({ nombre: '', hora_entrada: '08:00', hora_salida: '17:00', empleado_id: '', dias_semana: [1, 2, 3, 4, 5] }); setShow(false); load() }
   }
 
-  async function eliminar(id) {
-    if (!confirm('¿Eliminar turno?')) return
-    await sb.from('turnos').update({ activo: false }).eq('id', id); toast('Eliminado'); load()
+  function eliminar(id) {
+    setModal({ accion: 'eliminar', turnoId: id })
+  }
+
+  async function confirmarEliminar(adminPin) {
+    const id = modal.turnoId
+    setModal(null)
+    const { data, error } = await sb.rpc('admin_eliminar_turno', { p_admin_id: user.id, p_admin_pin: adminPin, p_turno_id: id })
+    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
+    else { toast('Eliminado'); load() }
   }
 
   const toggleDia = v => setForm(f => ({ ...f, dias_semana: f.dias_semana.includes(v) ? f.dias_semana.filter(d => d !== v) : [...f.dias_semana, v].sort((a, b) => a - b) }))
@@ -365,6 +405,8 @@ function AdminTurnos({ toast }) {
 
   return (
     <div>
+      {modal?.accion === 'crear' && <PinModal titulo='Confirma tu PIN para crear el turno' onConfirm={confirmarGuardar} onCancel={() => setModal(null)} />}
+      {modal?.accion === 'eliminar' && <PinModal titulo='Confirma tu PIN para eliminar el turno' onConfirm={confirmarEliminar} onCancel={() => setModal(null)} />}
       <SH title='Gestión de turnos' sub={`${turnos.length} turnos activos`}><Btn label='+ Nuevo turno' onClick={() => setShow(!show)} /></SH>
       {show && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 18 }}>
@@ -520,8 +562,8 @@ function AdminAlertas() {
     const dow = hoy.getDay()
     const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
     Promise.all([
-      sb.from('fichajes').select('*,empleados(nombre,departamento)').is('salida', null).not('entrada', 'is', null).lt('fecha', t),
-      sb.from('fichajes').select('*,empleados(nombre)').not('salida', 'is', null).gte('fecha', hace30),
+      sb.from('fichajes').select('id,fecha,entrada,salida,empleados(nombre,departamento)').is('salida', null).not('entrada', 'is', null).lt('fecha', t),
+      sb.from('fichajes').select('id,fecha,entrada,salida,empleados(nombre)').not('salida', 'is', null).gte('fecha', hace30),
       dow >= 1 && dow <= 5 ? sb.from('empleados').select('id,nombre,departamento').eq('es_admin', false).eq('activo', true) : Promise.resolve({ data: [] }),
       dow >= 1 && dow <= 5 ? sb.from('fichajes').select('empleado_id').eq('fecha', t) : Promise.resolve({ data: [] }),
     ]).then(([abiertos, recientes, emps, fichadosHoy]) => {

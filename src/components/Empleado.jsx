@@ -165,7 +165,7 @@ function EmpFichar({ user, checkedIn, fichajeHoy, onAction, toast }) {
 function EmpHistorial({ user }) {
   const [rows, setRows] = useState([])
   useEffect(() => {
-    sb.from('fichajes').select('*').eq('empleado_id', user.id).order('fecha', { ascending: false }).then(({ data }) => setRows(data || []))
+    sb.from('fichajes').select('id,fecha,entrada,salida').eq('empleado_id', user.id).order('fecha', { ascending: false }).then(({ data }) => setRows(data || []))
   }, [user.id])
   const total = rows.filter(r => r.salida).reduce((a, r) => a + (new Date(r.salida) - new Date(r.entrada)), 0)
   return (
@@ -195,7 +195,7 @@ function EmpAusencias({ user, toast }) {
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ tipo: 'Vacaciones', desde: today(), hasta: today(), motivo: '' })
   const load = useCallback(() => {
-    sb.from('ausencias').select('*').eq('empleado_id', user.id).order('created_at', { ascending: false }).then(({ data }) => setRows(data || []))
+    sb.from('ausencias').select('id,tipo,desde,hasta,motivo,estado,created_at').eq('empleado_id', user.id).order('created_at', { ascending: false }).then(({ data }) => setRows(data || []))
   }, [user.id])
   useEffect(load, [load])
 

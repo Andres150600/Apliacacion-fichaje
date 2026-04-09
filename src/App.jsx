@@ -25,7 +25,7 @@ export default function App() {
   }, [user, loginTime])
 
   const showToast = (msg, type = 'ok') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
-  const login = u => { setUser(u); setLoginTime(Date.now()); setView(u.es_admin ? 'admin' : 'emp') }
+  const login = u => { const { _pin, ...userData } = u; setUser(userData); setLoginTime(Date.now()); setView(u.es_admin ? 'admin' : 'emp') }
   const logout = () => { setUser(null); setView('login'); setLoginTime(null) }
 
   return (
