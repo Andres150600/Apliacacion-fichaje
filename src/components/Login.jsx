@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { sb } from '../lib/supabase'
+import { api } from '../lib/api'
 
 export default function Login({ onLogin, toast, dark, toggleDark }) {
   const [emps, setEmps] = useState([])
@@ -9,19 +9,28 @@ export default function Login({ onLogin, toast, dark, toggleDark }) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    sb.from('empleados').select('id,nombre,es_admin').eq('activo', true).order('nombre')
-      .then(({ data }) => setEmps(data || []))
+    api.getEmpleados().then(setEmps).catch(() => setEmps([]))
   }, [])
 
   async function acceder() {
     if (!sel) { setErr('Selecciona un empleado'); return }
     if (!pin) { setErr('Introduce tu PIN'); return }
     setLoading(true); setErr('')
-    const { data, error } = await sb.rpc('verificar_pin', { p_id: sel, p_pin: pin })
-    setLoading(false)
-    if (error) { setErr('Error de conexión'); return }
-    if (!data?.ok) { setErr(data?.bloqueado ? 'Cuenta bloqueada 15 min por exceso de intentos' : 'PIN incorrecto'); setPin(''); return }
-    onLogin({ ...data.empleado, _pin: pin })
+    try {
+      const { token, empleado } = await api.login(sel, pin)
+      onLogin(empleado, token)
+    } catch (e) {
+      const msg = e.message || ''
+      if (msg.includes('bloqueado') || msg.includes('bloque')) {
+        setErr('Cuenta bloqueada 15 min por exceso de intentos')
+      } else if (msg.includes('PIN')) {
+        setErr('PIN incorrecto'); setPin('')
+      } else {
+        setErr('Error de conexión')
+      }
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

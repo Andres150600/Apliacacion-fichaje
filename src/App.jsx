@@ -5,6 +5,7 @@ import Empleado from './components/Empleado'
 
 export default function App() {
   const [user, setUser] = useState(null)
+  const [token, setToken] = useState(null)
   const [view, setView] = useState('login')
   const [toast, setToast] = useState(null)
   const [dark, setDark] = useState(true)
@@ -16,7 +17,7 @@ export default function App() {
     if (!user || !loginTime) return
     const id = setInterval(() => {
       if (Date.now() - loginTime > 8 * 3600000) {
-        setUser(null); setView('login'); setLoginTime(null)
+        setUser(null); setToken(null); setView('login'); setLoginTime(null)
         setToast({ msg: 'Sesión expirada, vuelve a iniciar sesión', type: 'err' })
         setTimeout(() => setToast(null), 4000)
       }
@@ -25,8 +26,8 @@ export default function App() {
   }, [user, loginTime])
 
   const showToast = (msg, type = 'ok') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3000) }
-  const login = u => { const { _pin, ...userData } = u; setUser(userData); setLoginTime(Date.now()); setView(u.es_admin ? 'admin' : 'emp') }
-  const logout = () => { setUser(null); setView('login'); setLoginTime(null) }
+  const login = (empleado, tok) => { setUser(empleado); setToken(tok); setLoginTime(Date.now()); setView(empleado.es_admin ? 'admin' : 'emp') }
+  const logout = () => { setUser(null); setToken(null); setView('login'); setLoginTime(null) }
 
   return (
     <div style={{ minHeight: '100%', background: 'var(--bg)', color: 'var(--text)' }}>
@@ -36,8 +37,8 @@ export default function App() {
         </div>
       )}
       {view === 'login' && <Login onLogin={login} toast={showToast} dark={dark} toggleDark={() => setDark(d => !d)} />}
-      {view === 'admin' && user && <Admin user={user} onLogout={logout} toast={showToast} dark={dark} toggleDark={() => setDark(d => !d)} />}
-      {view === 'emp' && user && <Empleado user={user} onLogout={logout} toast={showToast} dark={dark} toggleDark={() => setDark(d => !d)} />}
+      {view === 'admin' && user && <Admin user={user} token={token} onLogout={logout} toast={showToast} dark={dark} toggleDark={() => setDark(d => !d)} />}
+      {view === 'emp' && user && <Empleado user={user} token={token} onLogout={logout} toast={showToast} dark={dark} toggleDark={() => setDark(d => !d)} />}
     </div>
   )
 }

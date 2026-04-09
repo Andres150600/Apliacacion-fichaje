@@ -1,28 +1,26 @@
 import { useState, useEffect, useCallback } from 'react'
 import ExcelJS from 'exceljs'
-import { sb } from '../lib/supabase'
-import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, PinModal, fmt, fmtDate, fmtDur, today, COLORS } from './shared'
+import { api } from '../lib/api'
+import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, fmt, fmtDate, fmtDur, today, COLORS } from './shared'
 
-export default function Admin({ user, onLogout, toast, dark, toggleDark }) {
+export default function Admin({ user, token, onLogout, toast, dark, toggleDark }) {
   const [tab, setTab] = useState('dashboard')
   const [pend, setPend] = useState(0)
   const [nAlertas, setNAlertas] = useState(0)
 
   useEffect(() => {
-    sb.from('ausencias').select('id', { count: 'exact' }).eq('estado', 'pendiente').then(({ count }) => setPend(count || 0))
-    const t = today()
-    sb.from('fichajes').select('id', { count: 'exact' }).is('salida', null).not('entrada', 'is', null).lt('fecha', t)
-      .then(a => setNAlertas(a.count || 0))
-  }, [tab])
+    api.getAusencias(token, { estado: 'pendiente' }).then(d => setPend(d.length)).catch(() => {})
+    api.getAlertas(token).then(d => setNAlertas(d.filter(a => a.tipo === 'sin_salida').length)).catch(() => {})
+  }, [tab, token])
 
   const tabs = [
     { id: 'dashboard', icon: '▦', label: 'Panel' },
-    { id: 'fichajes', icon: '◷', label: 'Fichajes' },
+    { id: 'fichajes',  icon: '◷', label: 'Fichajes' },
     { id: 'ausencias', icon: '◌', label: 'Ausencias' },
     { id: 'empleados', icon: '◉', label: 'Equipo' },
-    { id: 'turnos', icon: '◑', label: 'Turnos' },
-    { id: 'informes', icon: '▤', label: 'Informes' },
-    { id: 'alertas', icon: '▲', label: 'Alertas' },
+    { id: 'turnos',    icon: '◑', label: 'Turnos' },
+    { id: 'informes',  icon: '▤', label: 'Informes' },
+    { id: 'alertas',   icon: '▲', label: 'Alertas' },
   ]
 
   return (
@@ -49,13 +47,13 @@ export default function Admin({ user, onLogout, toast, dark, toggleDark }) {
       </aside>
       <main className="main-pad" style={{ flex: 1, overflow: 'auto', padding: 26, background: 'var(--bg)' }}>
         <TopBar user={user} dark={dark} toggleDark={toggleDark} onLogout={onLogout} isAdmin={true} />
-        {tab === 'dashboard' && <AdminDashboard />}
-        {tab === 'fichajes' && <AdminFichajes toast={toast} />}
-        {tab === 'ausencias' && <AdminAusencias toast={toast} user={user} />}
-        {tab === 'empleados' && <AdminEmpleados toast={toast} user={user} />}
-        {tab === 'turnos' && <AdminTurnos toast={toast} user={user} />}
-        {tab === 'informes' && <AdminInformes toast={toast} />}
-        {tab === 'alertas' && <AdminAlertas />}
+        {tab === 'dashboard' && <AdminDashboard token={token} />}
+        {tab === 'fichajes'  && <AdminFichajes token={token} toast={toast} />}
+        {tab === 'ausencias' && <AdminAusencias token={token} toast={toast} />}
+        {tab === 'empleados' && <AdminEmpleados token={token} toast={toast} />}
+        {tab === 'turnos'    && <AdminTurnos token={token} toast={toast} />}
+        {tab === 'informes'  && <AdminInformes token={token} toast={toast} />}
+        {tab === 'alertas'   && <AdminAlertas token={token} />}
       </main>
       <nav className="bottom-nav">
         <div className="bottom-nav-inner">
@@ -73,37 +71,21 @@ export default function Admin({ user, onLogout, toast, dark, toggleDark }) {
   )
 }
 
-function AdminDashboard() {
-  const [stats, setStats] = useState({ e: 0, f: 0, o: 0, p: 0 })
-  const [sem, setSem] = useState([])
-  const [dep, setDep] = useState([])
-  const [rec, setRec] = useState([])
-
+function AdminDashboard({ token }) {
+  const [data, setData] = useState(null)
   useEffect(() => {
-    const t = today()
-    const getLunes = () => { const d = new Date(); const dow = d.getDay() || 7; d.setDate(d.getDate() - dow + 1); return d.toISOString().split('T')[0] }
-    Promise.all([
-      sb.from('empleados').select('id,departamento', { count: 'exact' }).eq('es_admin', false).eq('activo', true),
-      sb.from('fichajes').select('id,entrada,salida').eq('fecha', t),
-      sb.from('ausencias').select('id', { count: 'exact' }).eq('estado', 'pendiente'),
-      sb.from('fichajes').select('fecha').gte('fecha', getLunes()),
-      sb.from('fichajes').select('id,empleado_id,fecha,entrada,salida,empleados(nombre)').order('created_at', { ascending: false }).limit(6),
-    ]).then(([e, f, p, s, r]) => {
-      setStats({ e: e.count || 0, f: (f.data || []).filter(x => x.entrada).length, o: (f.data || []).filter(x => x.entrada && !x.salida).length, p: p.count || 0 })
-      const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-      const map = {}; (s.data || []).forEach(x => { map[x.fecha] = (map[x.fecha] || 0) + 1 })
-      setSem(dias.map((d, i) => { const dt = new Date(); const dow = dt.getDay() || 7; dt.setDate(dt.getDate() - dow + i + 1); return { d, n: map[dt.toISOString().split('T')[0]] || 0 } }))
-      const dm = {}; (e.data || []).forEach(x => { dm[x.departamento] = (dm[x.departamento] || 0) + 1 })
-      setDep(Object.entries(dm)); setRec(r.data || [])
-    })
-  }, [])
+    api.getDashboard(token).then(setData).catch(() => {})
+  }, [token])
 
-  const mx = Math.max(...sem.map(s => s.n), 1)
+  if (!data) return <Loading />
+  const { stats, semana, departamentos, recientes } = data
+  const mx = Math.max(...semana.map(s => s.n), 1)
+
   return (
     <div>
       <SH title='Panel de control' sub={fmtDate(new Date())} />
       <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 22 }}>
-        {[{ l: 'Empleados', v: stats.e }, { l: 'Fichajes hoy', v: stats.f }, { l: 'En oficina', v: stats.o, hi: true }, { l: 'Pendientes', v: stats.p, warn: stats.p > 0 }].map((s, i) => (
+        {[{ l: 'Empleados', v: stats.empleados }, { l: 'Fichajes hoy', v: stats.fichajes_hoy }, { l: 'En oficina', v: stats.en_oficina, hi: true }, { l: 'Pendientes', v: stats.pendientes, warn: stats.pendientes > 0 }].map((s, i) => (
           <div key={i} style={{ background: 'var(--surface)', border: `1px solid ${s.hi ? 'var(--accent2)' : s.warn ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: 16 }}>
             <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>{s.l}</div>
             <div style={{ fontSize: 28, color: s.hi ? 'var(--accent2)' : s.warn ? 'var(--danger)' : 'var(--text)' }}>{s.v}</div>
@@ -114,7 +96,7 @@ function AdminDashboard() {
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18 }}>
           <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 14, textTransform: 'uppercase' }}>Esta semana</div>
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 72 }}>
-            {sem.map((s, i) => (
+            {semana.map((s, i) => (
               <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
                 <div style={{ width: '100%', background: s.n > 0 ? 'var(--accent)' : 'var(--surface2)', height: `${(s.n / mx) * 60 + 4}px`, minHeight: 4, borderRadius: 2 }} />
                 <span style={{ fontSize: 10, color: 'var(--muted)' }}>{s.d}</span>
@@ -125,17 +107,17 @@ function AdminDashboard() {
         </div>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18 }}>
           <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 14, textTransform: 'uppercase' }}>Departamentos</div>
-          {dep.map(([d, n], i) => (
+          {departamentos.map(([d, n], i) => (
             <div key={d} style={{ marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}><span>{d}</span><span style={{ color: 'var(--accent)' }}>{n}</span></div>
-              <div style={{ height: 3, background: 'var(--surface2)', borderRadius: 2 }}><div style={{ height: '100%', background: COLORS[i % COLORS.length], width: `${(n / Math.max(...dep.map(x => x[1]), 1)) * 100}%`, borderRadius: 2 }} /></div>
+              <div style={{ height: 3, background: 'var(--surface2)', borderRadius: 2 }}><div style={{ height: '100%', background: COLORS[i % COLORS.length], width: `${(n / Math.max(...departamentos.map(x => x[1]), 1)) * 100}%`, borderRadius: 2 }} /></div>
             </div>
           ))}
         </div>
       </div>
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18 }}>
         <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 14, textTransform: 'uppercase' }}>Actividad reciente</div>
-        {rec.map(r => (
+        {recientes.map(r => (
           <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
             <Av name={r.empleados?.nombre || '?'} size={26} />
             <span style={{ flex: 1, fontSize: 13 }}>{r.empleados?.nombre}</span>
@@ -144,13 +126,13 @@ function AdminDashboard() {
             {r.salida && <span style={{ fontSize: 11, color: 'var(--danger)' }}>↓{fmt(r.salida)}</span>}
           </div>
         ))}
-        {rec.length === 0 && <Empty txt='Sin actividad' />}
+        {recientes.length === 0 && <Empty txt='Sin actividad' />}
       </div>
     </div>
   )
 }
 
-function AdminFichajes({ toast }) {
+function AdminFichajes({ token, toast }) {
   const [rows, setRows] = useState([])
   const [emps, setEmps] = useState([])
   const [fE, setFE] = useState('')
@@ -158,34 +140,26 @@ function AdminFichajes({ toast }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    sb.from('empleados').select('id,nombre').eq('es_admin', false).order('nombre').then(({ data }) => setEmps(data || []))
-  }, [])
+    api.getEmpleadosAdmin(token).then(setEmps).catch(() => {})
+  }, [token])
 
   useEffect(() => {
     setLoading(true)
-    let q = sb.from('fichajes').select('id,empleado_id,fecha,entrada,salida,created_at,empleados(nombre)').order('created_at', { ascending: false })
-    if (fE) q = q.eq('empleado_id', fE)
-    if (fF) q = q.eq('fecha', fF)
-    q.then(({ data }) => { setRows(data || []); setLoading(false) })
-  }, [fE, fF])
+    const params = {}
+    if (fE) params.empleado_id = fE
+    if (fF) params.fecha = fF
+    api.getFichajes(token, params).then(d => { setRows(d); setLoading(false) }).catch(() => setLoading(false))
+  }, [token, fE, fF])
 
   async function exportExcel() {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('Fichajes')
     ws.columns = [
-      { header: 'Empleado', width: 22 },
-      { header: 'Fecha', width: 12 },
-      { header: 'Entrada', width: 10 },
-      { header: 'Salida', width: 10 },
-      { header: 'Total', width: 12 },
-      { header: 'Estado', width: 12 },
+      { header: 'Empleado', width: 22 }, { header: 'Fecha', width: 12 },
+      { header: 'Entrada', width: 10 }, { header: 'Salida', width: 10 },
+      { header: 'Total', width: 12 }, { header: 'Estado', width: 12 },
     ]
-    rows.forEach(r => ws.addRow([
-      r.empleados?.nombre || '-', r.fecha, fmt(r.entrada),
-      r.salida ? fmt(r.salida) : '-',
-      r.salida ? fmtDur(new Date(r.salida) - new Date(r.entrada)) : 'En curso',
-      r.salida ? 'Completo' : 'En curso'
-    ]))
+    rows.forEach(r => ws.addRow([r.empleados?.nombre || '-', r.fecha, fmt(r.entrada), r.salida ? fmt(r.salida) : '-', r.salida ? fmtDur(new Date(r.salida) - new Date(r.entrada)) : 'En curso', r.salida ? 'Completo' : 'En curso']))
     const buffer = await wb.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const url = URL.createObjectURL(blob)
@@ -227,29 +201,23 @@ function AdminFichajes({ toast }) {
   )
 }
 
-function AdminAusencias({ toast, user }) {
+function AdminAusencias({ token, toast }) {
   const [rows, setRows] = useState([])
-  const [modal, setModal] = useState(null) // { id, estado }
   const load = useCallback(() => {
-    sb.from('ausencias').select('id,tipo,desde,hasta,motivo,estado,created_at,empleados(nombre)').order('created_at', { ascending: false }).then(({ data }) => setRows(data || []))
-  }, [])
+    api.getAusencias(token).then(setRows).catch(() => {})
+  }, [token])
   useEffect(load, [load])
 
-  function cambiar(id, estado) {
-    setModal({ id, estado })
-  }
-
-  async function confirmarCambio(adminPin) {
-    const { id, estado } = modal
-    setModal(null)
-    const { data, error } = await sb.rpc('admin_cambiar_ausencia', { p_admin_id: user.id, p_admin_pin: adminPin, p_aus_id: id, p_estado: estado })
-    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
-    else { toast(estado === 'aprobada' ? 'Aprobada' : 'Rechazada'); load() }
+  async function cambiar(id, estado) {
+    try {
+      await api.patchAusencia(token, id, estado)
+      toast(estado === 'aprobada' ? 'Aprobada' : 'Rechazada')
+      load()
+    } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
   return (
     <div>
-      {modal && <PinModal titulo={`Confirma tu PIN para ${modal.estado === 'aprobada' ? 'aprobar' : 'rechazar'} la ausencia`} onConfirm={confirmarCambio} onCancel={() => setModal(null)} />}
       <SH title='Ausencias' sub={`${rows.filter(r => r.estado === 'pendiente').length} pendientes`} />
       <Tabla cols={['Empleado', 'Tipo', 'Desde', 'Hasta', 'Motivo', 'Estado', '']}>
         {rows.map(a => (
@@ -276,49 +244,35 @@ function AdminAusencias({ toast, user }) {
   )
 }
 
-function AdminEmpleados({ toast, user }) {
+function AdminEmpleados({ token, toast }) {
   const [emps, setEmps] = useState([])
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 22 })
-  const [modal, setModal] = useState(null) // { accion: 'crear' | 'eliminar', empId? }
   const load = useCallback(() => {
-    sb.from('empleados').select('id,nombre,email,cargo,departamento,activo,dias_vacaciones,dias_usados').eq('es_admin', false).eq('activo', true).order('nombre').then(({ data }) => setEmps(data || []))
-  }, [])
+    api.getEmpleadosAdmin(token).then(setEmps).catch(() => {})
+  }, [token])
   useEffect(load, [load])
 
   async function guardar() {
     if (!form.nombre || !form.email || !form.pin) { toast('Nombre, email y PIN obligatorios', 'err'); return }
-    setModal({ accion: 'crear' })
+    try {
+      await api.postEmpleado(token, form)
+      toast('Empleado añadido')
+      setForm({ nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 22 })
+      setShow(false); load()
+    } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
-  async function confirmarGuardar(adminPin) {
-    setModal(null)
-    const { data, error } = await sb.rpc('admin_crear_empleado', {
-      p_admin_id: user.id, p_admin_pin: adminPin,
-      p_nombre: form.nombre, p_email: form.email,
-      p_departamento: form.departamento, p_cargo: form.cargo,
-      p_pin: form.pin, p_dias_vacaciones: form.dias_vacaciones
-    })
-    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
-    else { toast('Empleado añadido'); setForm({ nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 22 }); setShow(false); load() }
-  }
-
-  function eliminar(id) {
-    setModal({ accion: 'eliminar', empId: id })
-  }
-
-  async function confirmarEliminar(adminPin) {
-    const id = modal.empId
-    setModal(null)
-    const { data, error } = await sb.rpc('admin_desactivar_empleado', { p_admin_id: user.id, p_admin_pin: adminPin, p_emp_id: id })
-    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
-    else { toast('Eliminado'); load() }
+  async function eliminar(id) {
+    if (!confirm('¿Eliminar empleado?')) return
+    try {
+      await api.deleteEmpleado(token, id)
+      toast('Eliminado'); load()
+    } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
   return (
     <div>
-      {modal?.accion === 'crear' && <PinModal titulo='Confirma tu PIN para crear el empleado' onConfirm={confirmarGuardar} onCancel={() => setModal(null)} />}
-      {modal?.accion === 'eliminar' && <PinModal titulo='Confirma tu PIN para eliminar el empleado' onConfirm={confirmarEliminar} onCancel={() => setModal(null)} />}
       <SH title='Empleados' sub={`${emps.length} registrados`}><Btn label='+ Añadir' onClick={() => setShow(!show)} /></SH>
       {show && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 18 }}>
@@ -354,49 +308,33 @@ function AdminEmpleados({ toast, user }) {
   )
 }
 
-function AdminTurnos({ toast, user }) {
+function AdminTurnos({ token, toast }) {
   const [turnos, setTurnos] = useState([])
   const [emps, setEmps] = useState([])
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ nombre: '', hora_entrada: '08:00', hora_salida: '17:00', empleado_id: '', dias_semana: [1, 2, 3, 4, 5] })
-  const [modal, setModal] = useState(null) // { accion: 'crear' | 'eliminar', turnoId? }
   const DIAS = [{ n: 'L', v: 1 }, { n: 'M', v: 2 }, { n: 'X', v: 3 }, { n: 'J', v: 4 }, { n: 'V', v: 5 }, { n: 'S', v: 6 }, { n: 'D', v: 0 }]
 
   const load = useCallback(() => {
-    Promise.all([
-      sb.from('turnos').select('id,nombre,hora_entrada,hora_salida,dias_semana,empleados(nombre)').eq('activo', true).order('created_at', { ascending: false }),
-      sb.from('empleados').select('id,nombre').eq('es_admin', false).eq('activo', true).order('nombre')
-    ]).then(([t, e]) => { setTurnos(t.data || []); setEmps(e.data || []) })
-  }, [])
+    Promise.all([api.getTurnos(token), api.getEmpleadosAdmin(token)])
+      .then(([t, e]) => { setTurnos(t); setEmps(e) }).catch(() => {})
+  }, [token])
   useEffect(load, [load])
 
-  function guardar() {
+  async function guardar() {
     if (!form.nombre || !form.empleado_id) { toast('Nombre y empleado obligatorios', 'err'); return }
-    setModal({ accion: 'crear' })
+    try {
+      await api.postTurno(token, form)
+      toast('Turno creado')
+      setForm({ nombre: '', hora_entrada: '08:00', hora_salida: '17:00', empleado_id: '', dias_semana: [1, 2, 3, 4, 5] })
+      setShow(false); load()
+    } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
-  async function confirmarGuardar(adminPin) {
-    setModal(null)
-    const { data, error } = await sb.rpc('admin_crear_turno', {
-      p_admin_id: user.id, p_admin_pin: adminPin,
-      p_nombre: form.nombre, p_empleado_id: form.empleado_id,
-      p_hora_entrada: form.hora_entrada, p_hora_salida: form.hora_salida,
-      p_dias_semana: form.dias_semana
-    })
-    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
-    else { toast('Turno creado'); setForm({ nombre: '', hora_entrada: '08:00', hora_salida: '17:00', empleado_id: '', dias_semana: [1, 2, 3, 4, 5] }); setShow(false); load() }
-  }
-
-  function eliminar(id) {
-    setModal({ accion: 'eliminar', turnoId: id })
-  }
-
-  async function confirmarEliminar(adminPin) {
-    const id = modal.turnoId
-    setModal(null)
-    const { data, error } = await sb.rpc('admin_eliminar_turno', { p_admin_id: user.id, p_admin_pin: adminPin, p_turno_id: id })
-    if (error || !data?.ok) toast('Error: ' + (data?.error || error?.message || 'desconocido'), 'err')
-    else { toast('Eliminado'); load() }
+  async function eliminar(id) {
+    if (!confirm('¿Eliminar turno?')) return
+    try { await api.deleteTurno(token, id); toast('Eliminado'); load() }
+    catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
   const toggleDia = v => setForm(f => ({ ...f, dias_semana: f.dias_semana.includes(v) ? f.dias_semana.filter(d => d !== v) : [...f.dias_semana, v].sort((a, b) => a - b) }))
@@ -405,23 +343,21 @@ function AdminTurnos({ toast, user }) {
 
   return (
     <div>
-      {modal?.accion === 'crear' && <PinModal titulo='Confirma tu PIN para crear el turno' onConfirm={confirmarGuardar} onCancel={() => setModal(null)} />}
-      {modal?.accion === 'eliminar' && <PinModal titulo='Confirma tu PIN para eliminar el turno' onConfirm={confirmarEliminar} onCancel={() => setModal(null)} />}
       <SH title='Gestión de turnos' sub={`${turnos.length} turnos activos`}><Btn label='+ Nuevo turno' onClick={() => setShow(!show)} /></SH>
       {show && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 18 }}>
           <div className="mobile-1col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <input placeholder='Nombre del turno (ej: Mañana, Tarde...)' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+            <input placeholder='Nombre del turno' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
             <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))}>
               <option value=''>-- Asignar empleado --</option>
               {emps.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
-            <div><label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4, letterSpacing: 1 }}>HORA ENTRADA</label><input type='time' value={form.hora_entrada} onChange={e => setForm(f => ({ ...f, hora_entrada: e.target.value }))} /></div>
-            <div><label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4, letterSpacing: 1 }}>HORA SALIDA</label><input type='time' value={form.hora_salida} onChange={e => setForm(f => ({ ...f, hora_salida: e.target.value }))} /></div>
+            <div><label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>HORA ENTRADA</label><input type='time' value={form.hora_entrada} onChange={e => setForm(f => ({ ...f, hora_entrada: e.target.value }))} /></div>
+            <div><label style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>HORA SALIDA</label><input type='time' value={form.hora_salida} onChange={e => setForm(f => ({ ...f, hora_salida: e.target.value }))} /></div>
           </div>
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, letterSpacing: 1, textTransform: 'uppercase' }}>Días de la semana</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Días de la semana</div>
+            <div style={{ display: 'flex', gap: 6 }}>
               {DIAS.map(d => (
                 <button key={d.v} onClick={() => toggleDia(d.v)} style={{ width: 36, height: 36, borderRadius: '50%', background: form.dias_semana.includes(d.v) ? 'var(--accent)' : 'var(--surface2)', color: form.dias_semana.includes(d.v) ? '#0f0f0f' : 'var(--muted)', border: `1px solid ${form.dias_semana.includes(d.v) ? 'var(--accent)' : 'var(--border)'}`, fontWeight: 'bold', fontSize: 12 }}>{d.n}</button>
               ))}
@@ -452,7 +388,7 @@ function AdminTurnos({ toast, user }) {
   )
 }
 
-function AdminInformes({ toast }) {
+function AdminInformes({ token, toast }) {
   const now = new Date()
   const [mes, setMes] = useState(now.getMonth())
   const [anio, setAnio] = useState(now.getFullYear())
@@ -462,20 +398,11 @@ function AdminInformes({ toast }) {
 
   async function generar() {
     setLoading(true); setPreview(null)
-    const desde = `${anio}-${String(mes + 1).padStart(2, '0')}-01`
-    const hasta = `${anio}-${String(mes + 1).padStart(2, '0')}-${new Date(anio, mes + 1, 0).getDate()}`
-    const [{ data: emps }, { data: fichs }, { data: aus }] = await Promise.all([
-      sb.from('empleados').select('id,nombre,departamento').eq('es_admin', false).eq('activo', true).order('nombre'),
-      sb.from('fichajes').select('*').gte('fecha', desde).lte('fecha', hasta),
-      sb.from('ausencias').select('*').gte('desde', desde).lte('hasta', hasta),
-    ])
-    const filas = (emps || []).map(emp => {
-      const mf = (fichs || []).filter(f => f.empleado_id === emp.id)
-      const ma = (aus || []).filter(a => a.empleado_id === emp.id)
-      const ms = mf.filter(f => f.salida).reduce((a, f) => a + (new Date(f.salida) - new Date(f.entrada)), 0)
-      return { nombre: emp.nombre, dept: emp.departamento, dias: mf.filter(f => f.entrada).length, horas: fmtDur(ms), ausAp: ma.filter(a => a.estado === 'aprobada').length, ausPe: ma.filter(a => a.estado === 'pendiente').length, fichajes: mf }
-    })
-    setPreview({ filas, mes: meses[mes], anio }); setLoading(false)
+    try {
+      const data = await api.getInformes(token, mes, anio)
+      setPreview(data)
+    } catch (e) { toast('Error: ' + e.message, 'err') }
+    finally { setLoading(false) }
   }
 
   async function exportar(det) {
@@ -483,28 +410,16 @@ function AdminInformes({ toast }) {
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet(det ? 'Detallado' : 'Resumen')
     if (!det) {
-      ws.columns = [
-        { header: 'Empleado', width: 22 }, { header: 'Departamento', width: 14 },
-        { header: 'Días trabajados', width: 14 }, { header: 'Horas totales', width: 14 },
-        { header: 'Ausencias aprobadas', width: 18 }, { header: 'Ausencias pendientes', width: 18 },
-      ]
-      preview.filas.forEach(f => ws.addRow([f.nombre, f.dept, f.dias, f.horas, f.ausAp, f.ausPe]))
+      ws.columns = [{ header: 'Empleado', width: 22 }, { header: 'Departamento', width: 14 }, { header: 'Días trabajados', width: 14 }, { header: 'Horas totales', width: 14 }, { header: 'Aus. aprobadas', width: 18 }, { header: 'Aus. pendientes', width: 18 }]
+      preview.filas.forEach(f => ws.addRow([f.nombre, f.departamento, f.dias, f.horas, f.ausencias_aprobadas, f.ausencias_pendientes]))
     } else {
-      ws.columns = [
-        { header: 'Empleado', width: 22 }, { header: 'Departamento', width: 14 },
-        { header: 'Fecha', width: 12 }, { header: 'Entrada', width: 10 },
-        { header: 'Salida', width: 10 }, { header: 'Total', width: 12 },
-      ]
-      preview.filas.forEach(f => f.fichajes.forEach(fi => ws.addRow([
-        f.nombre, f.dept, fi.fecha, fmt(fi.entrada),
-        fi.salida ? fmt(fi.salida) : '-',
-        fi.salida ? fmtDur(new Date(fi.salida) - new Date(fi.entrada)) : '-'
-      ])))
+      ws.columns = [{ header: 'Empleado', width: 22 }, { header: 'Departamento', width: 14 }, { header: 'Fecha', width: 12 }, { header: 'Entrada', width: 10 }, { header: 'Salida', width: 10 }, { header: 'Total', width: 12 }]
+      preview.filas.forEach(f => f.fichajes.forEach(fi => ws.addRow([f.nombre, f.departamento, fi.fecha, fmt(fi.entrada), fi.salida ? fmt(fi.salida) : '-', fi.salida ? fmtDur(new Date(fi.salida) - new Date(fi.entrada)) : '-'])))
     }
     const buffer = await wb.xlsx.writeBuffer()
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const url = URL.createObjectURL(blob)
-    const name = det ? `detallado_${preview.mes}_${preview.anio}.xlsx` : `resumen_${preview.mes}_${preview.anio}.xlsx`
+    const name = det ? `detallado_${meses[preview.mes]}_${preview.anio}.xlsx` : `resumen_${meses[preview.mes]}_${preview.anio}.xlsx`
     const a = document.createElement('a'); a.href = url; a.download = name; a.click()
     URL.revokeObjectURL(url)
     toast('Excel descargado')
@@ -515,32 +430,28 @@ function AdminInformes({ toast }) {
       <SH title='Informes mensuales' />
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select value={mes} onChange={e => setMes(Number(e.target.value))} style={{ width: 160 }}>
-            {meses.map((m, i) => <option key={i} value={i}>{m}</option>)}
-          </select>
-          <select value={anio} onChange={e => setAnio(Number(e.target.value))} style={{ width: 100 }}>
-            {[2024, 2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
+          <select value={mes} onChange={e => setMes(Number(e.target.value))} style={{ width: 160 }}>{meses.map((m, i) => <option key={i} value={i}>{m}</option>)}</select>
+          <select value={anio} onChange={e => setAnio(Number(e.target.value))} style={{ width: 100 }}>{[2024, 2025, 2026, 2027].map(a => <option key={a} value={a}>{a}</option>)}</select>
           <Btn label={loading ? 'Generando...' : 'Generar'} onClick={generar} />
         </div>
       </div>
       {preview && (
         <>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
             <button onClick={() => exportar(false)} style={{ background: 'var(--accent2)', color: '#0f0f0f', padding: '8px 16px', fontSize: 11, fontWeight: 'bold', borderRadius: 4, border: 'none', letterSpacing: 1, textTransform: 'uppercase' }}>↓ Resumen Excel</button>
             <button onClick={() => exportar(true)} style={{ background: 'var(--info)', color: '#fff', padding: '8px 16px', fontSize: 11, fontWeight: 'bold', borderRadius: 4, border: 'none', letterSpacing: 1, textTransform: 'uppercase' }}>↓ Detallado Excel</button>
           </div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20 }}>
-            <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)', marginBottom: 14, textTransform: 'uppercase' }}>{preview.mes} {preview.anio}</div>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)', marginBottom: 14, textTransform: 'uppercase' }}>{meses[preview.mes]} {preview.anio}</div>
             <Tabla cols={['Empleado', 'Dpto', 'Días', 'Horas', 'Aus.Ap', 'Aus.Pe']}>
               {preview.filas.map((f, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '9px 10px', fontSize: 13, fontWeight: 'bold' }}>{f.nombre}</td>
-                  <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--muted)' }}>{f.dept}</td>
+                  <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--muted)' }}>{f.departamento}</td>
                   <td style={{ padding: '9px 10px', fontSize: 13, color: 'var(--accent)' }}>{f.dias}</td>
                   <td style={{ padding: '9px 10px', fontSize: 12 }}>{f.horas}</td>
-                  <td style={{ padding: '9px 10px' }}>{f.ausAp > 0 ? <Badge label={f.ausAp} c='var(--accent2)' /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>0</span>}</td>
-                  <td style={{ padding: '9px 10px' }}>{f.ausPe > 0 ? <Badge label={f.ausPe} c='var(--danger)' /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>0</span>}</td>
+                  <td style={{ padding: '9px 10px' }}>{f.ausencias_aprobadas > 0 ? <Badge label={f.ausencias_aprobadas} c='var(--accent2)' /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>0</span>}</td>
+                  <td style={{ padding: '9px 10px' }}>{f.ausencias_pendientes > 0 ? <Badge label={f.ausencias_pendientes} c='var(--danger)' /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>0</span>}</td>
                 </tr>
               ))}
             </Tabla>
@@ -552,38 +463,13 @@ function AdminInformes({ toast }) {
   )
 }
 
-function AdminAlertas() {
+function AdminAlertas({ token }) {
   const [alertas, setAlertas] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const t = today()
-    const hoy = new Date()
-    const dow = hoy.getDay()
-    const hace30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
-    Promise.all([
-      sb.from('fichajes').select('id,fecha,entrada,salida,empleados(nombre,departamento)').is('salida', null).not('entrada', 'is', null).lt('fecha', t),
-      sb.from('fichajes').select('id,fecha,entrada,salida,empleados(nombre)').not('salida', 'is', null).gte('fecha', hace30),
-      dow >= 1 && dow <= 5 ? sb.from('empleados').select('id,nombre,departamento').eq('es_admin', false).eq('activo', true) : Promise.resolve({ data: [] }),
-      dow >= 1 && dow <= 5 ? sb.from('fichajes').select('empleado_id').eq('fecha', t) : Promise.resolve({ data: [] }),
-    ]).then(([abiertos, recientes, emps, fichadosHoy]) => {
-      const als = []
-      ;(abiertos.data || []).forEach(f => {
-        als.push({ tipo: 'sin_salida', nivel: 'danger', msg: `${f.empleados?.nombre} — sin registrar salida el ${fmtDate(f.fecha)}` })
-      })
-      ;(recientes.data || []).forEach(f => {
-        const dur = new Date(f.salida) - new Date(f.entrada)
-        if (dur > 10 * 3600000) als.push({ tipo: 'jornada_larga', nivel: 'warn', msg: `${f.empleados?.nombre} — ${fmtDur(dur)} trabajadas el ${fmtDate(f.fecha)}` })
-      })
-      if (dow >= 1 && dow <= 5) {
-        const ids = new Set((fichadosHoy.data || []).map(f => f.empleado_id))
-        ;(emps.data || []).forEach(e => {
-          if (!ids.has(e.id)) als.push({ tipo: 'no_fichado', nivel: 'info', msg: `${e.nombre}${e.departamento ? ' (' + e.departamento + ')' : ''} — no ha registrado entrada hoy` })
-        })
-      }
-      setAlertas(als); setLoading(false)
-    })
-  }, [])
+    api.getAlertas(token).then(d => { setAlertas(d); setLoading(false) }).catch(() => setLoading(false))
+  }, [token])
 
   const col = { danger: 'var(--danger)', warn: 'var(--accent)', info: 'var(--info)' }
   const icon = { sin_salida: '⚠', jornada_larga: '⏱', no_fichado: '◎' }
@@ -612,7 +498,7 @@ function AdminAlertas() {
                 {arr.map((a, i) => (
                   <div key={i} style={{ background: 'var(--surface)', border: `1px solid ${col[a.nivel]}33`, borderLeft: `3px solid ${col[a.nivel]}`, borderRadius: 8, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span style={{ fontSize: 20, color: col[a.nivel], flexShrink: 0 }}>{icon[a.tipo]}</span>
-                    <div style={{ flex: 1 }}><div style={{ fontSize: 13, marginBottom: 2 }}>{a.msg}</div></div>
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 13 }}>{a.msg}</div></div>
                     <Badge label={label[a.nivel]} c={col[a.nivel]} />
                   </div>
                 ))}

@@ -1,28 +1,30 @@
 import { useState, useEffect, useCallback } from 'react'
-import { sb } from '../lib/supabase'
+import { api } from '../lib/api'
 import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, fmt, fmtDate, fmtDur, today, COLORS } from './shared'
 
-export default function Empleado({ user, onLogout, toast, dark, toggleDark }) {
+export default function Empleado({ user, token, onLogout, toast, dark, toggleDark }) {
   const [tab, setTab] = useState('fichar')
   const [checkedIn, setCheckedIn] = useState(false)
   const [fichajeHoy, setFichajeHoy] = useState(null)
 
   const checkStatus = useCallback(() => {
-    sb.from('fichajes').select('*').eq('empleado_id', user.id).eq('fecha', today()).maybeSingle()
-      .then(({ data }) => { setFichajeHoy(data); setCheckedIn(!!(data && data.entrada && !data.salida)) })
-  }, [user.id])
+    api.getFichajeHoy(token).then(data => {
+      setFichajeHoy(data)
+      setCheckedIn(!!(data && data.entrada && !data.salida))
+    }).catch(() => {})
+  }, [token])
 
   useEffect(checkStatus, [checkStatus])
 
   const tabs = [
-    { id: 'fichar', icon: '◷', label: 'Fichar' },
-    { id: 'historial', icon: '▤', label: 'Historial' },
-    { id: 'ausencias', icon: '◌', label: 'Ausencias' },
+    { id: 'fichar',     icon: '◷', label: 'Fichar' },
+    { id: 'historial',  icon: '▤', label: 'Historial' },
+    { id: 'ausencias',  icon: '◌', label: 'Ausencias' },
     { id: 'calendario', icon: '▦', label: 'Equipo' },
     { id: 'documentos', icon: '▣', label: 'Docs' },
   ]
 
-  const props = { user, toast, dark, toggleDark, onLogout, checkedIn, fichajeHoy, onAction: checkStatus }
+  const props = { user, token, toast, dark, toggleDark, onLogout, checkedIn, fichajeHoy, onAction: checkStatus }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
@@ -50,9 +52,9 @@ export default function Empleado({ user, onLogout, toast, dark, toggleDark }) {
       </aside>
       <main className="main-pad" style={{ flex: 1, overflow: 'auto', padding: 26, background: 'var(--bg)' }}>
         <TopBar user={user} dark={dark} toggleDark={toggleDark} onLogout={onLogout} checkedIn={checkedIn} />
-        {tab === 'fichar' && <EmpFichar {...props} />}
-        {tab === 'historial' && <EmpHistorial {...props} />}
-        {tab === 'ausencias' && <EmpAusencias {...props} />}
+        {tab === 'fichar'     && <EmpFichar {...props} />}
+        {tab === 'historial'  && <EmpHistorial {...props} />}
+        {tab === 'ausencias'  && <EmpAusencias {...props} />}
         {tab === 'calendario' && <Calendario {...props} />}
         {tab === 'documentos' && <EmpDocumentos {...props} />}
       </main>
@@ -70,15 +72,13 @@ export default function Empleado({ user, onLogout, toast, dark, toggleDark }) {
   )
 }
 
-function EmpFichar({ user, checkedIn, fichajeHoy, onAction, toast }) {
+function EmpFichar({ user, token, checkedIn, fichajeHoy, onAction, toast }) {
   const [now, setNow] = useState(new Date())
   const [loading, setLoading] = useState(false)
   const [vac, setVac] = useState(null)
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
-  useEffect(() => {
-    sb.from('empleados').select('dias_vacaciones,dias_usados').eq('id', user.id).single().then(({ data }) => { if (data) setVac(data) })
-  }, [user.id])
+  useEffect(() => { api.getMe(token).then(setVac).catch(() => {}) }, [token])
 
   async function getGeo() {
     return new Promise(res => {
@@ -98,24 +98,14 @@ function EmpFichar({ user, checkedIn, fichajeHoy, onAction, toast }) {
       if (tipo === 'entrada') {
         if (checkedIn) { toast('Ya tienes entrada activa', 'err'); return }
         const pos = await getGeo()
-        const datos = { empleado_id: user.id, fecha: today(), entrada: new Date().toISOString() }
-        if (pos.lat_entrada != null) { datos.lat_entrada = pos.lat_entrada; datos.lng_entrada = pos.lng_entrada }
-        const { error } = await sb.from('fichajes').insert(datos)
-        if (error && error.message.includes('column')) {
-          const { error: e2 } = await sb.from('fichajes').insert({ empleado_id: user.id, fecha: today(), entrada: new Date().toISOString() })
-          if (e2) throw e2
-        } else if (error) throw error
+        await api.postFichaje(token, { fecha: today(), entrada: new Date().toISOString(), ...pos })
         toast('Entrada registrada')
       } else {
         if (!fichajeHoy?.entrada || fichajeHoy?.salida) { toast('No hay entrada activa', 'err'); return }
         const pos = await getGeo()
         const datos = { salida: new Date().toISOString() }
         if (pos.lat_entrada != null) { datos.lat_salida = pos.lat_entrada; datos.lng_salida = pos.lng_entrada }
-        const { error } = await sb.from('fichajes').update(datos).eq('id', fichajeHoy.id)
-        if (error && error.message.includes('column')) {
-          const { error: e2 } = await sb.from('fichajes').update({ salida: new Date().toISOString() }).eq('id', fichajeHoy.id)
-          if (e2) throw e2
-        } else if (error) throw error
+        await api.patchFichaje(token, fichajeHoy.id, datos)
         toast('Salida registrada')
       }
       onAction()
@@ -162,11 +152,9 @@ function EmpFichar({ user, checkedIn, fichajeHoy, onAction, toast }) {
   )
 }
 
-function EmpHistorial({ user }) {
+function EmpHistorial({ token }) {
   const [rows, setRows] = useState([])
-  useEffect(() => {
-    sb.from('fichajes').select('id,fecha,entrada,salida').eq('empleado_id', user.id).order('fecha', { ascending: false }).then(({ data }) => setRows(data || []))
-  }, [user.id])
+  useEffect(() => { api.getFichajes(token).then(setRows).catch(() => {}) }, [token])
   const total = rows.filter(r => r.salida).reduce((a, r) => a + (new Date(r.salida) - new Date(r.entrada)), 0)
   return (
     <div>
@@ -190,19 +178,17 @@ function EmpHistorial({ user }) {
   )
 }
 
-function EmpAusencias({ user, toast }) {
+function EmpAusencias({ token, toast }) {
   const [rows, setRows] = useState([])
   const [show, setShow] = useState(false)
   const [form, setForm] = useState({ tipo: 'Vacaciones', desde: today(), hasta: today(), motivo: '' })
-  const load = useCallback(() => {
-    sb.from('ausencias').select('id,tipo,desde,hasta,motivo,estado,created_at').eq('empleado_id', user.id).order('created_at', { ascending: false }).then(({ data }) => setRows(data || []))
-  }, [user.id])
+  const load = useCallback(() => { api.getAusencias(token).then(setRows).catch(() => {}) }, [token])
   useEffect(load, [load])
 
   async function enviar() {
     if (!form.motivo) { toast('Indica el motivo', 'err'); return }
-    await sb.from('ausencias').insert({ ...form, empleado_id: user.id, estado: 'pendiente' })
-    toast('Solicitud enviada'); setShow(false); load()
+    try { await api.postAusencia(token, form); toast('Solicitud enviada'); setShow(false); load() }
+    catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
   return (
@@ -237,7 +223,7 @@ function EmpAusencias({ user, toast }) {
   )
 }
 
-function Calendario({ user }) {
+function Calendario({ token }) {
   const [mes, setMes] = useState(new Date().getMonth())
   const [anio, setAnio] = useState(new Date().getFullYear())
   const [aus, setAus] = useState([])
@@ -247,8 +233,8 @@ function Calendario({ user }) {
   useEffect(() => {
     const desde = `${anio}-${String(mes + 1).padStart(2, '0')}-01`
     const hasta = `${anio}-${String(mes + 1).padStart(2, '0')}-${new Date(anio, mes + 1, 0).getDate()}`
-    sb.from('ausencias').select('*,empleados(nombre)').eq('estado', 'aprobada').gte('desde', desde).lte('hasta', hasta).then(({ data }) => setAus(data || []))
-  }, [mes, anio])
+    api.getAusencias(token, { estado: 'aprobada', desde, hasta }).then(setAus).catch(() => {})
+  }, [mes, anio, token])
 
   const primerDia = new Date(anio, mes, 1).getDay() || 7
   const diasMes = new Date(anio, mes + 1, 0).getDate()
@@ -296,8 +282,7 @@ function Calendario({ user }) {
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>{a.tipo}</div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>
-                <div>{fmtDate(a.desde)}</div>
-                <div>{fmtDate(a.hasta)}</div>
+                <div>{fmtDate(a.desde)}</div><div>{fmtDate(a.hasta)}</div>
               </div>
             </div>
           ))}
@@ -308,11 +293,9 @@ function Calendario({ user }) {
   )
 }
 
-function EmpDocumentos({ user }) {
+function EmpDocumentos({ token }) {
   const [docs, setDocs] = useState([])
-  useEffect(() => {
-    sb.from('documentos').select('*').eq('empleado_id', user.id).order('created_at', { ascending: false }).then(({ data }) => setDocs(data || []))
-  }, [user.id])
+  useEffect(() => { api.getDocumentos(token).then(setDocs).catch(() => {}) }, [token])
   return (
     <div>
       <SH title='Mis documentos' sub={`${docs.length} archivos`} />
