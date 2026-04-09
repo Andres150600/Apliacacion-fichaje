@@ -1,0 +1,30 @@
+*{box-sizing:border-box;margin:0;padding:0}
+html,body,#root{height:100%}
+body{font-family:'Courier New',monospace;transition:background .3s,color .3s}
+body.dark{--bg:#0f0f0f;--surface:#1a1a1a;--surface2:#242424;--surface3:#2e2e2e;--text:#e8e4d9;--muted:#7a7670;--border:#333}
+body.light{--bg:#f4f4f0;--surface:#ffffff;--surface2:#f0efe9;--surface3:#e8e7e0;--text:#1a1a1a;--muted:#888;--border:#ddd}
+:root{--accent:#c8a96e;--accent2:#8fb8a0;--danger:#c0604a;--info:#5b8ec4;--r:4px;--r2:8px}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:var(--r);font-family:inherit;font-size:13px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--accent)}
+button{cursor:pointer;font-family:inherit;border-radius:var(--r);border:none;font-size:13px}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:var(--border)}
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.bottom-nav-inner{display:flex;align-items:stretch;height:56px}
+.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:transparent;border:none;color:var(--muted);font-family:inherit;font-size:9px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;padding:4px 2px;position:relative}
+.bnav-item.active{color:var(--accent)}
+.bnav-item.active::after{content:'';position:absolute;top:0;left:15%;right:15%;height:2px;background:var(--accent);border-radius:0 0 2px 2px}
+.bnav-icon{font-size:18px;line-height:1}
+.nbadge{position:absolute;top:4px;right:calc(50% - 18px);background:var(--danger);color:#fff;border-radius:8px;font-size:9px;padding:1px 4px;font-weight:bold}
+.mobile-top{display:none}
+@media(max-width:768px){
+  .bottom-nav{display:block}
+  .desktop-sidebar{display:none!important}
+  .main-pad{padding-bottom:70px!important;padding:16px 16px 70px!important}
+  .stat-grid{grid-template-columns:repeat(2,1fr)!important}
+  .week-dept-grid{grid-template-columns:1fr!important}
+  .emp-grid{grid-template-columns:1fr!important}
+  .mobile-1col{grid-template-columns:1fr!important}
+  .mobile-top{display:flex!important}
+  table{min-width:500px}
+}
