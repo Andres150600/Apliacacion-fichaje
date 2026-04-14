@@ -172,19 +172,20 @@ function sideBtn(bg, color) {
 // ─── Modal selector de tipo de pausa ─────────────────────────────────────────
 function PausaModal({ visible, onConfirm, onCancel }) {
   if (!visible) return null
-  const tipos = ['Almuerzo', 'Café', 'Personal', 'Médico', 'Otra']
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, width: '100%', maxWidth: 320 }}>
         <div style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Iniciar pausa</div>
         <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 16 }}>¿Qué tipo de pausa?</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {tipos.map(t => (
-            <button key={t} onClick={() => onConfirm(t)} style={{ padding: '10px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
-              {t === 'Almuerzo' ? '🍽 Almuerzo' : t === 'Café' ? '☕ Café' : t === 'Personal' ? '👤 Personal' : t === 'Médico' ? '🏥 Médico' : '⏸ Otra'}
-              {t === 'Almuerzo' && <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 8 }}>Solo descuenta si &gt;30 min</span>}
-            </button>
-          ))}
+          <button onClick={() => onConfirm('Comida')} style={{ padding: '12px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
+            🍽 Comida / Almuerzo
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>Solo descuenta si supera los 30 min</div>
+          </button>
+          <button onClick={() => onConfirm('Descanso')} style={{ padding: '12px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
+            ⏸ Descanso
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>Siempre descuenta del tiempo trabajado</div>
+          </button>
         </div>
         <button onClick={onCancel} style={{ marginTop: 12, width: '100%', padding: '8px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
       </div>

@@ -23,7 +23,7 @@ export function calcNetMs(fichajeHoy, pausas, pausaActiva, now) {
   const bruto  = base - new Date(fichajeHoy.entrada)
   const deducido = (pausas || []).filter(p => p.fin).reduce((acc, p) => {
     const dur = new Date(p.fin) - new Date(p.inicio)
-    if (p.tipo === 'Almuerzo' && dur <= 30 * 60000) return acc
+    if ((p.tipo === 'Almuerzo' || p.tipo === 'Comida') && dur <= 30 * 60000) return acc
     return acc + dur
   }, 0)
   return Math.max(0, bruto - deducido)
