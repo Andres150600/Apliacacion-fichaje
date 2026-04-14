@@ -1,4 +1,7 @@
 const BASE = import.meta.env.VITE_API_URL
+
+// Despierta el backend en Render antes de que el usuario haga login
+export const warmupBackend = () => fetch(`${BASE}/health`).catch(() => {})
 const TTL = 30000
 const _cache = new Map()
 
@@ -84,4 +87,9 @@ export const api = {
   postTarea:   (token, data)         => post('/tareas', data, token),
   patchTarea:  (token, id, data)     => patch(`/tareas/${id}`, data, token),
   deleteTarea: (token, id)           => del(`/tareas/${id}`, token),
+
+  // Festivos
+  getFestivos:   (token, anio)       => get(`/festivos?anio=${anio}`, token),
+  postFestivo:   (token, data)       => post('/festivos', data, token),
+  deleteFestivo: (token, id)         => del(`/festivos/${id}`, token),
 }

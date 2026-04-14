@@ -208,8 +208,8 @@ function EmpFichar({ user, token, checkedIn, fichajeHoy, pausas, pausaActiva, ne
 
   useEffect(() => { api.getMe(token).then(setVac).catch(() => {}) }, [token])
 
-  const totalVac = vacGanadas()
-  const rest = vac ? Math.max(0, totalVac - (vac.dias_usados || 0)) : null
+  const VAC_TOTAL = 25
+  const rest = vac ? Math.max(0, VAC_TOTAL - (vac.dias_usados || 0)) : null
 
   // Calcular duración de pausa activa para mostrar
   const durPausaActiva = pausaActiva ? (now - new Date(pausaActiva.inicio)) : 0
@@ -285,9 +285,9 @@ function EmpFichar({ user, token, checkedIn, fichajeHoy, pausas, pausaActiva, ne
             <span style={{ fontSize: 13, color: 'var(--accent2)', fontWeight: 'bold' }}>{rest} disponibles</span>
           </div>
           <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 3 }}>
-            <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((vac.dias_usados || 0) / totalVac) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
+            <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((vac.dias_usados || 0) / VAC_TOTAL) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
           </div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{totalVac} días ganados este año · {rest} disponibles</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{VAC_TOTAL} días totales · {rest} disponibles</div>
         </div>
       )}
 
@@ -378,17 +378,17 @@ function EmpHistorial({ token }) {
 
 // ─── Ausencias ────────────────────────────────────────────────────────────────
 function EmpAusencias({ token, toast }) {
-  const [rows, setRows]   = useState([])
-  const [perfil, setPerfil] = useState(null)
-  const [show, setShow]   = useState(false)
-  const [anio, setAnio]   = useState(new Date().getFullYear())
-  const [form, setForm]   = useState({ tipo: 'Vacaciones', desde: today(), hasta: today(), motivo: '' })
+  const [rows, setRows]     = useState([])
+  const [festivos, setFestivos] = useState([])
+  const [show, setShow]     = useState(false)
+  const [anio, setAnio]     = useState(new Date().getFullYear())
+  const [form, setForm]     = useState({ tipo: 'Vacaciones', desde: today(), hasta: today(), motivo: '' })
 
   const load = useCallback(() => {
     api.getAusencias(token).then(setRows).catch(() => {})
-    api.getMe(token).then(setPerfil).catch(() => {})
   }, [token])
   useEffect(load, [load])
+  useEffect(() => { api.getFestivos(token, anio).then(setFestivos).catch(() => {}) }, [token, anio])
 
   async function enviar() {
     if (!form.motivo) { toast('Indica el motivo', 'err'); return }
@@ -397,8 +397,7 @@ function EmpAusencias({ token, toast }) {
   }
 
   // ── Cálculo de vacaciones ───────────────────────────────────────────────────
-  // Días ganados este año: proporcional al día actual del año (base 25 días)
-  const vacTotal   = vacGanadas(anio)
+  const vacTotal   = 25  // 25 días laborables anuales
   // Días usados: solo ausencias tipo "Vacaciones" aprobadas de este año, contando laborables
   const vacUsados  = rows.filter(r =>
     r.tipo === 'Vacaciones' && r.estado === 'aprobada' &&
@@ -422,9 +421,11 @@ function EmpAusencias({ token, toast }) {
     }
   })
 
-  const colorEstado = { aprobada: '#8fb8a0', pendiente: '#c8a96e', rechazada: '#c0604a' }
-  const meses      = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  const diasSemana = ['L','M','X','J','V','S','D']
+  const colorEstado  = { aprobada: '#8fb8a0', pendiente: '#c8a96e', rechazada: '#c0604a' }
+  const meses        = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const diasSemana   = ['L','M','X','J','V','S','D']
+  const festivosMapa = {}
+  festivos.forEach(f => { festivosMapa[f.fecha] = f.nombre })
 
   function renderMes(mes) {
     const primerDia = (new Date(anio, mes, 1).getDay() || 7) - 1
@@ -443,12 +444,13 @@ function EmpAusencias({ token, toast }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1 }}>
           {celdas.map((d, i) => {
             if (!d) return <div key={`e${i}`} />
-            const fecha   = `${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
-            const estado  = diasMarcados[fecha]
-            const esHoy   = fecha === hoy
-            const esFinde = [0, 6].includes(new Date(anio, mes, d).getDay())
+            const fecha      = `${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+            const estado     = diasMarcados[fecha]
+            const esHoy      = fecha === hoy
+            const esFinde    = [0, 6].includes(new Date(anio, mes, d).getDay())
+            const esFestivo  = !!festivosMapa[fecha]
             return (
-              <div key={d} style={{ textAlign: 'center', fontSize: 10, padding: '3px 1px', borderRadius: 3, background: estado ? colorEstado[estado] + '55' : esFinde ? 'rgba(128,128,128,0.1)' : 'transparent', color: esHoy ? 'var(--accent)' : estado ? colorEstado[estado] : esFinde ? 'var(--border)' : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent' }}>
+              <div key={d} title={esFestivo ? festivosMapa[fecha] : undefined} style={{ textAlign: 'center', fontSize: 10, padding: '3px 1px', borderRadius: 3, background: estado ? colorEstado[estado] + '55' : esFestivo ? 'rgba(192,96,74,0.18)' : esFinde ? 'rgba(128,128,128,0.1)' : 'transparent', color: esHoy ? 'var(--accent)' : estado ? colorEstado[estado] : esFestivo ? '#c0604a' : esFinde ? 'var(--border)' : 'var(--text)', fontWeight: esHoy || esFestivo ? 'bold' : 'normal', border: esHoy ? '1px solid var(--accent)' : esFestivo ? '1px solid rgba(192,96,74,0.4)' : '1px solid transparent' }}>
                 {d}
               </div>
             )
@@ -563,11 +565,13 @@ function EmpAusencias({ token, toast }) {
 
 // ─── Horarios ────────────────────────────────────────────────────────────────
 function EmpHorarios({ token }) {
-  const [turnos, setTurnos] = useState([])
-  const [mes, setMes]       = useState(new Date().getMonth())
-  const [anio, setAnio]     = useState(new Date().getFullYear())
+  const [turnos, setTurnos]   = useState([])
+  const [festivos, setFestivos] = useState([])
+  const [mes, setMes]         = useState(new Date().getMonth())
+  const [anio, setAnio]       = useState(new Date().getFullYear())
 
   useEffect(() => { api.getTurnos(token).then(setTurnos).catch(() => {}) }, [token])
+  useEffect(() => { api.getFestivos(token, anio).then(setFestivos).catch(() => {}) }, [token, anio])
 
   const mesesNombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const diasSemana   = ['L','M','X','J','V','S','D']
@@ -672,16 +676,19 @@ function EmpHorarios({ token }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
               {Array.from({ length: primerDia }).map((_, i) => <div key={`e${i}`} />)}
               {Array.from({ length: totalDias }, (_, i) => {
-                const dia   = i + 1
-                const t     = turnoDelDia(dia)
-                const horas = t ? horasTurno(t) : 0
-                const fecha = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
-                const esHoy = fecha === today()
-                const esFinde = [6,0].includes(new Date(anio, mes, dia).getDay())
+                const dia      = i + 1
+                const t        = turnoDelDia(dia)
+                const horas    = t ? horasTurno(t) : 0
+                const fecha    = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
+                const esHoy    = fecha === today()
+                const esFinde  = [6,0].includes(new Date(anio, mes, dia).getDay())
+                const festivo  = festivos.find(f => f.fecha === fecha)
                 return (
-                  <div key={dia} style={{ borderRadius: 6, padding: '6px 4px', textAlign: 'center', background: esHoy ? 'rgba(200,169,110,0.15)' : esFinde ? 'rgba(128,128,128,0.07)' : horas > 0 ? 'var(--surface2)' : 'transparent', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent', minHeight: 52 }}>
-                    <div style={{ fontSize: 11, color: esHoy ? 'var(--accent)' : esFinde ? 'var(--border)' : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', marginBottom: 2 }}>{dia}</div>
-                    {horas > 0 ? (
+                  <div key={dia} title={festivo?.nombre} style={{ borderRadius: 6, padding: '6px 4px', textAlign: 'center', background: esHoy ? 'rgba(200,169,110,0.15)' : festivo ? 'rgba(192,96,74,0.15)' : esFinde ? 'rgba(128,128,128,0.07)' : horas > 0 ? 'var(--surface2)' : 'transparent', border: esHoy ? '1px solid var(--accent)' : festivo ? '1px solid rgba(192,96,74,0.4)' : '1px solid transparent', minHeight: 52 }}>
+                    <div style={{ fontSize: 11, color: esHoy ? 'var(--accent)' : festivo ? '#c0604a' : esFinde ? 'var(--border)' : 'var(--text)', fontWeight: esHoy || festivo ? 'bold' : 'normal', marginBottom: 2 }}>{dia}</div>
+                    {festivo ? (
+                      <div style={{ fontSize: 9, color: '#c0604a', lineHeight: 1.2 }}>{festivo.nombre.length > 8 ? festivo.nombre.slice(0,7)+'…' : festivo.nombre}</div>
+                    ) : horas > 0 ? (
                       <div style={{ fontSize: 10, color: 'var(--accent2)', fontWeight: 'bold' }}>{horas % 1 === 0 ? horas : horas.toFixed(1)}h</div>
                     ) : (
                       <div style={{ fontSize: 10, color: 'var(--muted)' }}>–</div>
@@ -699,16 +706,18 @@ function EmpHorarios({ token }) {
 
 // ─── Calendario del equipo ────────────────────────────────────────────────────
 function Calendario({ token }) {
-  const [mes, setMes] = useState(new Date().getMonth())
-  const [anio, setAnio] = useState(new Date().getFullYear())
-  const [aus, setAus] = useState([])
+  const [mes, setMes]         = useState(new Date().getMonth())
+  const [anio, setAnio]       = useState(new Date().getFullYear())
+  const [aus, setAus]         = useState([])
+  const [festivos, setFestivos] = useState([])
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-  const dias = ['L','M','X','J','V','S','D']
+  const dias  = ['L','M','X','J','V','S','D']
 
   useEffect(() => {
     const desde = `${anio}-${String(mes+1).padStart(2,'0')}-01`
     const hasta = `${anio}-${String(mes+1).padStart(2,'0')}-${new Date(anio,mes+1,0).getDate()}`
     api.getAusencias(token, { estado: 'aprobada', desde, hasta }).then(setAus).catch(() => {})
+    api.getFestivos(token, anio).then(setFestivos).catch(() => {})
   }, [mes, anio, token])
 
   const primerDia = new Date(anio, mes, 1).getDay() || 7
@@ -735,11 +744,13 @@ function Calendario({ token }) {
           {Array.from({length:primerDia-1}).map((_,i)=><div key={`e${i}`}/>)}
           {Array.from({length:diasMes}).map((_,i)=>{
             const dia=i+1; const ad=ausDelDia(dia)
+            const fecha=`${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
             const esHoy=new Date().getDate()===dia&&new Date().getMonth()===mes&&new Date().getFullYear()===anio
             const esFinde=[0,6].includes(new Date(anio,mes,dia).getDay())
+            const festivo=festivos.find(f=>f.fecha===fecha)
             return (
-              <div key={dia} style={{ minHeight:36,borderRadius:4,padding:3,background:esHoy?'rgba(200,169,110,0.15)':esFinde?'rgba(128,128,128,0.08)':ad.length>0?'rgba(143,184,160,0.08)':'transparent',border:esHoy?'1px solid var(--accent)':'1px solid transparent' }}>
-                <div style={{ fontSize:11,textAlign:'center',color:esHoy?'var(--accent)':esFinde?'var(--border)':'var(--text)',fontWeight:esHoy?'bold':'normal' }}>{dia}</div>
+              <div key={dia} title={festivo?.nombre} style={{ minHeight:36,borderRadius:4,padding:3,background:esHoy?'rgba(200,169,110,0.15)':festivo?'rgba(192,96,74,0.15)':esFinde?'rgba(128,128,128,0.08)':ad.length>0?'rgba(143,184,160,0.08)':'transparent',border:esHoy?'1px solid var(--accent)':festivo?'1px solid rgba(192,96,74,0.4)':'1px solid transparent' }}>
+                <div style={{ fontSize:11,textAlign:'center',color:esHoy?'var(--accent)':festivo?'#c0604a':esFinde?'var(--border)':'var(--text)',fontWeight:esHoy||festivo?'bold':'normal' }}>{dia}</div>
                 {ad.slice(0,2).map((a,j)=><div key={j} style={{ fontSize:9,background:COLORS[j]+'33',color:COLORS[j],borderRadius:2,padding:'1px 3px',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{a.empleados?.nombre?.split(' ')[0]}</div>)}
                 {ad.length>2&&<div style={{ fontSize:9,color:'var(--muted)' }}>+{ad.length-2}</div>}
               </div>

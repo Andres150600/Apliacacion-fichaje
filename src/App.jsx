@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Login from './components/Login'
 import Admin from './components/Admin'
 import Empleado from './components/Empleado'
-import { api } from './lib/api'
+import { api, warmupBackend } from './lib/api'
 
 export default function App() {
   const [user, setUser]       = useState(null)
@@ -18,6 +18,9 @@ export default function App() {
   const [pausaActiva, setPausaActiva] = useState(null)
 
   useEffect(() => { document.body.className = dark ? 'dark' : 'light' }, [dark])
+
+  // Despierta el backend en cuanto carga la app (Render free tier duerme)
+  useEffect(() => { warmupBackend() }, [])
 
   // Expiración de sesión
   useEffect(() => {

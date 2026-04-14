@@ -19,6 +19,7 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
     { id: 'ausencias', icon: '◌', label: 'Ausencias' },
     { id: 'empleados', icon: '◉', label: 'Equipo' },
     { id: 'turnos',    icon: '◑', label: 'Turnos' },
+    { id: 'festivos',  icon: '◈', label: 'Festivos' },
     { id: 'informes',  icon: '▤', label: 'Informes' },
     { id: 'alertas',   icon: '▲', label: 'Alertas' },
   ]
@@ -52,6 +53,7 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
         {tab === 'ausencias' && <AdminAusencias token={token} toast={toast} />}
         {tab === 'empleados' && <AdminEmpleados token={token} toast={toast} />}
         {tab === 'turnos'    && <AdminTurnos token={token} toast={toast} />}
+        {tab === 'festivos'  && <AdminFestivos token={token} toast={toast} />}
         {tab === 'informes'  && <AdminInformes token={token} toast={toast} />}
         {tab === 'alertas'   && <AdminAlertas token={token} />}
       </main>
@@ -593,3 +595,112 @@ function AdminAlertas({ token }) {
     </div>
   )
 }
+
+// ─── Festivos ─────────────────────────────────────────────────────────────────
+const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+function AdminFestivos({ token, toast }) {
+  const [festivos, setFestivos]   = useState([])
+  const [anio, setAnio]           = useState(new Date().getFullYear())
+  const [form, setForm]           = useState({ fecha: today(), nombre: '', tipo: 'empresa' })
+  const [loading, setLoading]     = useState(false)
+
+  const load = useCallback(() => {
+    api.getFestivos(token, anio).then(setFestivos).catch(() => {})
+  }, [token, anio])
+  useEffect(load, [load])
+
+  async function crear() {
+    if (!form.fecha || !form.nombre.trim()) { toast('Fecha y nombre son obligatorios', 'err'); return }
+    setLoading(true)
+    try { await api.postFestivo(token, form); toast('Festivo añadido'); setForm({ fecha: today(), nombre: '', tipo: 'empresa' }); load() }
+    catch (e) { toast('Error: ' + e.message, 'err') }
+    finally { setLoading(false) }
+  }
+
+  async function eliminar(id) {
+    try { await api.deleteFestivo(token, id); toast('Festivo eliminado'); load() }
+    catch (e) { toast('Error: ' + e.message, 'err') }
+  }
+
+  // Agrupar por mes
+  const porMes = {}
+  festivos.forEach(f => {
+    const m = new Date(f.fecha).getMonth()
+    if (!porMes[m]) porMes[m] = []
+    porMes[m].push(f)
+  })
+
+  return (
+    <div>
+      <SH title='Días festivos' sub={`${festivos.length} festivos en ${anio}`} />
+
+      {/* Selector de año */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <button onClick={() => setAnio(a => a - 1)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '5px 12px', borderRadius: 4, cursor: 'pointer' }}>←</button>
+        <span style={{ fontSize: 16, fontWeight: 'bold' }}>{anio}</span>
+        <button onClick={() => setAnio(a => a + 1)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '5px 12px', borderRadius: 4, cursor: 'pointer' }}>→</button>
+      </div>
+
+      {/* Formulario añadir festivo */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18, marginBottom: 24 }}>
+        <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12 }}>Añadir festivo</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, alignItems: 'end' }}>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Fecha</label>
+            <input type='date' value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Nombre del festivo</label>
+            <input placeholder='Ej: Día del Trabajo, Navidad...' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} onKeyDown={e => e.key === 'Enter' && crear()} />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Tipo</label>
+            <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+              <option value='empresa'>Empresa</option>
+              <option value='nacional'>Nacional</option>
+            </select>
+          </div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <Btn label={loading ? 'Guardando...' : 'Añadir festivo'} onClick={crear} disabled={loading} />
+        </div>
+      </div>
+
+      {/* Leyenda */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 11, color: 'var(--muted)' }}>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'rgba(192,96,74,0.3)', border: '1px solid rgba(192,96,74,0.5)', marginRight: 5 }} />Festivo empresa</span>
+        <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'rgba(155,142,196,0.3)', border: '1px solid rgba(155,142,196,0.5)', marginRight: 5 }} />Festivo nacional</span>
+      </div>
+
+      {/* Lista agrupada por mes */}
+      {Object.keys(porMes).sort((a,b) => a-b).map(m => (
+        <div key={m} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)', textTransform: 'uppercase', marginBottom: 8, fontWeight: 'bold' }}>{MESES_CORTOS[m]}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {porMes[m].map(f => {
+              const c = f.tipo === 'nacional' ? '#9b8ec4' : '#c0604a'
+              const d = new Date(f.fecha)
+              return (
+                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface)', border: `1px solid ${c}44`, borderRadius: 8, padding: '10px 14px' }}>
+                  <div style={{ width: 40, textAlign: 'center', background: `${c}22`, borderRadius: 6, padding: '4px 0', flexShrink: 0 }}>
+                    <div style={{ fontSize: 16, fontWeight: 'bold', color: c, lineHeight: 1 }}>{d.getDate()}</div>
+                    <div style={{ fontSize: 9, color: c, letterSpacing: 1 }}>{['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.getDay()]}</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 'bold' }}>{f.nombre}</div>
+                    <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 8, background: `${c}22`, color: c, border: `1px solid ${c}44` }}>{f.tipo}</span>
+                  </div>
+                  <button onClick={() => eliminar(f.id)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 4, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Eliminar</button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      {festivos.length === 0 && <Empty txt={`Sin festivos registrados en ${anio}`} />}
+    </div>
+  )
+}
+
