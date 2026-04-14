@@ -1,32 +1,25 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { api } from '../lib/api'
 
 export default function Login({ onLogin, toast, dark, toggleDark }) {
-  const [emps, setEmps] = useState([])
-  const [sel, setSel] = useState('')
+  const [nombre, setNombre] = useState('')
   const [pin, setPin] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    api.getEmpleados().then(setEmps).catch(() => setEmps([]))
-  }, [])
-
   async function acceder() {
-    if (!sel) { setErr('Selecciona un empleado'); return }
+    if (!nombre.trim()) { setErr('Introduce tu nombre'); return }
     if (!pin) { setErr('Introduce tu PIN'); return }
     setLoading(true); setErr('')
     try {
-      const { token, empleado } = await api.login(sel, pin)
+      const { token, empleado } = await api.login(nombre.trim(), pin)
       onLogin(empleado, token)
     } catch (e) {
       const msg = e.message || ''
       if (msg.includes('bloqueado') || msg.includes('bloque')) {
         setErr('Cuenta bloqueada 15 min por exceso de intentos')
-      } else if (msg.includes('PIN')) {
-        setErr('PIN incorrecto'); setPin('')
       } else {
-        setErr('Error de conexión')
+        setErr('Credenciales incorrectas'); setPin('')
       }
     } finally {
       setLoading(false)
@@ -47,11 +40,8 @@ export default function Login({ onLogin, toast, dark, toggleDark }) {
         </div>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 28 }}>
           <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Empleado</label>
-            <select value={sel} onChange={e => setSel(e.target.value)}>
-              <option value=''>-- Seleccionar --</option>
-              {emps.map(e => <option key={e.id} value={e.id}>{e.nombre}{e.es_admin ? ' (Admin)' : ''}</option>)}
-            </select>
+            <label style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nombre</label>
+            <input type='text' value={nombre} onChange={e => setNombre(e.target.value)} onKeyDown={e => e.key === 'Enter' && acceder()} placeholder='Tu nombre completo' autoComplete='off' />
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>PIN</label>

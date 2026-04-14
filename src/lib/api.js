@@ -21,8 +21,7 @@ const del  = (path, token)        => req('DELETE', path, null, token)
 
 export const api = {
   // Auth
-  login:         (empleado_id, pin)    => post('/auth/login', { empleado_id, pin }),
-  getEmpleados:  ()                    => get('/auth/empleados'),
+  login:         (nombre, pin)         => post('/auth/login', { nombre, pin }),
 
   // Fichajes
   getFichajeHoy: (token)               => get('/fichajes/hoy', token),
