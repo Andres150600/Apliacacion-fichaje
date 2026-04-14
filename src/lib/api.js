@@ -67,4 +67,14 @@ export const api = {
 
   // Documentos
   getDocumentos: (token)               => get('/documentos', token),
+
+  // Pausas
+  postPausa:     (token, data)         => post('/pausas', data, token),
+  patchPausa:    (token, id)           => patch(`/pausas/${id}`, {}, token),
+  getPausas:     (token, fichaje_id)   => get(`/pausas?fichaje_id=${fichaje_id}`, token),
+
+  // Fichajes manuales
+  getFichajesManuales: (token)         => get('/fichajes-manuales', token),
+  postFichajeManual:   (token, data)   => post('/fichajes-manuales', data, token),
+  patchFichajeManual:  (token, id, estado) => patch(`/fichajes-manuales/${id}`, { estado }, token),
 }
