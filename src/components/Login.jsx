@@ -41,7 +41,7 @@ export default function Login({ onLogin, toast, dark, toggleDark }) {
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 28 }}>
           <div style={{ marginBottom: 14 }}>
             <label style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Nombre</label>
-            <input type='text' value={nombre} onChange={e => setNombre(e.target.value)} onKeyDown={e => e.key === 'Enter' && acceder()} placeholder='Tu nombre completo' autoComplete='off' />
+            <input type='text' value={nombre} onChange={e => setNombre(e.target.value)} onKeyDown={e => e.key === 'Enter' && acceder()} placeholder='Ej: AGarcia' autoComplete='off' />
           </div>
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>PIN</label>
