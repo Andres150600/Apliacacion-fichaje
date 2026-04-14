@@ -11,7 +11,7 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
   useEffect(() => {
     api.getAusencias(token, { estado: 'pendiente' }).then(d => setPend(d.length)).catch(() => {})
     api.getAlertas(token).then(d => setNAlertas(d.filter(a => a.tipo === 'sin_salida').length)).catch(() => {})
-  }, [tab, token])
+  }, [token])
 
   const tabs = [
     { id: 'dashboard', icon: '▦', label: 'Panel' },

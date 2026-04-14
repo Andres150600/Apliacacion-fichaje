@@ -1,4 +1,14 @@
 const BASE = import.meta.env.VITE_API_URL
+const TTL = 30000
+const _cache = new Map()
+
+function cacheGet(key) {
+  const e = _cache.get(key)
+  if (!e || Date.now() - e.ts > TTL) { _cache.delete(key); return null }
+  return e.data
+}
+function cacheSet(key, data) { _cache.set(key, { data, ts: Date.now() }) }
+function cacheInvalidate(prefix) { _cache.forEach((_, k) => { if (k.startsWith(prefix)) _cache.delete(k) }) }
 
 async function req(method, path, body, token) {
   const res = await fetch(`${BASE}${path}`, {
@@ -14,10 +24,15 @@ async function req(method, path, body, token) {
   return data
 }
 
-const get  = (path, token)        => req('GET',    path, null, token)
-const post = (path, body, token)  => req('POST',   path, body, token)
-const patch= (path, body, token)  => req('PATCH',  path, body, token)
-const del  = (path, token)        => req('DELETE', path, null, token)
+const get = (path, token) => {
+  const key = path + (token?.slice(-10) || '')
+  const cached = cacheGet(key)
+  if (cached) return Promise.resolve(cached)
+  return req('GET', path, null, token).then(d => { cacheSet(key, d); return d })
+}
+const post  = (path, body, token) => req('POST',   path, body, token).then(d => { cacheInvalidate(path.split('/')[1]); return d })
+const patch = (path, body, token) => req('PATCH',  path, body, token).then(d => { cacheInvalidate(path.split('/')[1]); return d })
+const del   = (path, token)       => req('DELETE', path, null, token).then(d => { cacheInvalidate(path.split('/')[1]); return d })
 
 export const api = {
   // Auth
