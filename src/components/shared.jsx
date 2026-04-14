@@ -23,13 +23,38 @@ export function diasLaborables(desde, hasta) {
   return count
 }
 
-// Días de vacaciones ganados hasta hoy en el año dado (base 25 días anuales)
-export function vacGanadas(anio = new Date().getFullYear()) {
-  const inicio   = new Date(anio, 0, 1)
-  const fin      = new Date(anio, 11, 31)
-  const diasAnio = Math.round((fin - inicio) / 86400000) + 1
-  const diaAct   = Math.min(Math.round((new Date() - inicio) / 86400000) + 1, diasAnio)
-  return Math.round((diaAct / diasAnio) * 25)
+// ── Festivos nacionales de España ─────────────────────────────────────────────
+// Calcula la fecha de Pascua (algoritmo de Butcher)
+function _pascua(anio) {
+  const a = anio % 19, b = Math.floor(anio / 100), c = anio % 100
+  const d = Math.floor(b / 4), e = b % 4
+  const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3)
+  const h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4), k = c % 4
+  const l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const mes = Math.floor((h + l - 7 * m + 114) / 31)
+  const dia = ((h + l - 7 * m + 114) % 31) + 1
+  return new Date(anio, mes - 1, dia)
+}
+function _addDias(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r }
+function _fmt(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
+
+export function festivosNacionales(anio) {
+  const pascua = _pascua(anio)
+  return [
+    { fecha: `${anio}-01-01`, nombre: 'Año Nuevo',                  tipo: 'nacional' },
+    { fecha: `${anio}-01-06`, nombre: 'Reyes Magos',                tipo: 'nacional' },
+    { fecha: _fmt(_addDias(pascua, -3)), nombre: 'Jueves Santo',    tipo: 'nacional' },
+    { fecha: _fmt(_addDias(pascua, -2)), nombre: 'Viernes Santo',   tipo: 'nacional' },
+    { fecha: `${anio}-05-01`, nombre: 'Día del Trabajo',            tipo: 'nacional' },
+    { fecha: `${anio}-08-15`, nombre: 'Asunción de la Virgen',      tipo: 'nacional' },
+    { fecha: `${anio}-10-12`, nombre: 'Fiesta Nacional de España',  tipo: 'nacional' },
+    { fecha: `${anio}-11-01`, nombre: 'Todos los Santos',           tipo: 'nacional' },
+    { fecha: `${anio}-12-06`, nombre: 'Día de la Constitución',     tipo: 'nacional' },
+    { fecha: `${anio}-12-08`, nombre: 'Inmaculada Concepción',      tipo: 'nacional' },
+    { fecha: `${anio}-12-25`, nombre: 'Navidad',                    tipo: 'nacional' },
+  ]
 }
 export const ini   = n => n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 export const COLORS = ['#c8a96e', '#8fb8a0', '#5b8ec4', '#c0604a', '#9b8ec4', '#c48e5b']

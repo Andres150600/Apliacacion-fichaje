@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
-import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, today, COLORS, diasLaborables, vacGanadas } from './shared'
+import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, today, COLORS, diasLaborables, festivosNacionales } from './shared'
 
 function EmpleadoWrapper(props) {
   const [pausaModal, setPausaModal] = useState(false)
@@ -424,8 +424,10 @@ function EmpAusencias({ token, toast }) {
   const colorEstado  = { aprobada: '#8fb8a0', pendiente: '#c8a96e', rechazada: '#c0604a' }
   const meses        = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const diasSemana   = ['L','M','X','J','V','S','D']
-  const festivosMapa = {}
-  festivos.forEach(f => { festivosMapa[f.fecha] = f.nombre })
+  // Combinar festivos nacionales (automáticos) + festivos de empresa (del admin)
+  const todosFestivos = [...festivosNacionales(anio), ...festivos]
+  const festivosMapa  = {}
+  todosFestivos.forEach(f => { festivosMapa[f.fecha] = f.nombre })
 
   function renderMes(mes) {
     const primerDia = (new Date(anio, mes, 1).getDay() || 7) - 1
@@ -573,6 +575,9 @@ function EmpHorarios({ token }) {
   useEffect(() => { api.getTurnos(token).then(setTurnos).catch(() => {}) }, [token])
   useEffect(() => { api.getFestivos(token, anio).then(setFestivos).catch(() => {}) }, [token, anio])
 
+  // Nacionales automáticos + empresa desde DB
+  const todosFestivosH = [...festivosNacionales(anio), ...festivos]
+
   const mesesNombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const diasSemana   = ['L','M','X','J','V','S','D']
 
@@ -682,7 +687,7 @@ function EmpHorarios({ token }) {
                 const fecha    = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
                 const esHoy    = fecha === today()
                 const esFinde  = [6,0].includes(new Date(anio, mes, dia).getDay())
-                const festivo  = festivos.find(f => f.fecha === fecha)
+                const festivo  = todosFestivosH.find(f => f.fecha === fecha)
                 return (
                   <div key={dia} title={festivo?.nombre} style={{ borderRadius: 6, padding: '6px 4px', textAlign: 'center', background: esHoy ? 'rgba(200,169,110,0.15)' : festivo ? 'rgba(192,96,74,0.15)' : esFinde ? 'rgba(128,128,128,0.07)' : horas > 0 ? 'var(--surface2)' : 'transparent', border: esHoy ? '1px solid var(--accent)' : festivo ? '1px solid rgba(192,96,74,0.4)' : '1px solid transparent', minHeight: 52 }}>
                     <div style={{ fontSize: 11, color: esHoy ? 'var(--accent)' : festivo ? '#c0604a' : esFinde ? 'var(--border)' : 'var(--text)', fontWeight: esHoy || festivo ? 'bold' : 'normal', marginBottom: 2 }}>{dia}</div>
@@ -747,7 +752,8 @@ function Calendario({ token }) {
             const fecha=`${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
             const esHoy=new Date().getDate()===dia&&new Date().getMonth()===mes&&new Date().getFullYear()===anio
             const esFinde=[0,6].includes(new Date(anio,mes,dia).getDay())
-            const festivo=festivos.find(f=>f.fecha===fecha)
+            const todosFestivosC=[...festivosNacionales(anio),...festivos]
+            const festivo=todosFestivosC.find(f=>f.fecha===fecha)
             return (
               <div key={dia} title={festivo?.nombre} style={{ minHeight:36,borderRadius:4,padding:3,background:esHoy?'rgba(200,169,110,0.15)':festivo?'rgba(192,96,74,0.15)':esFinde?'rgba(128,128,128,0.08)':ad.length>0?'rgba(143,184,160,0.08)':'transparent',border:esHoy?'1px solid var(--accent)':festivo?'1px solid rgba(192,96,74,0.4)':'1px solid transparent' }}>
                 <div style={{ fontSize:11,textAlign:'center',color:esHoy?'var(--accent)':festivo?'#c0604a':esFinde?'var(--border)':'var(--text)',fontWeight:esHoy||festivo?'bold':'normal' }}>{dia}</div>
