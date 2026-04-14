@@ -58,6 +58,7 @@ export const api = {
   // Turnos
   getTurnos:     (token)               => get('/turnos', token),
   postTurno:     (token, data)         => post('/turnos', data, token),
+  patchTurno:    (token, id, data)     => patch(`/turnos/${id}`, data, token),
   deleteTurno:   (token, id)           => del(`/turnos/${id}`, token),
 
   // Informes
