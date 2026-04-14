@@ -369,10 +369,16 @@ function EmpHistorial({ token }) {
 
 // ─── Ausencias ────────────────────────────────────────────────────────────────
 function EmpAusencias({ token, toast }) {
-  const [rows, setRows] = useState([])
-  const [show, setShow] = useState(false)
-  const [form, setForm] = useState({ tipo: 'Vacaciones', desde: today(), hasta: today(), motivo: '' })
-  const load = useCallback(() => { api.getAusencias(token).then(setRows).catch(() => {}) }, [token])
+  const [rows, setRows]   = useState([])
+  const [perfil, setPerfil] = useState(null)
+  const [show, setShow]   = useState(false)
+  const [anio, setAnio]   = useState(new Date().getFullYear())
+  const [form, setForm]   = useState({ tipo: 'Vacaciones', desde: today(), hasta: today(), motivo: '' })
+
+  const load = useCallback(() => {
+    api.getAusencias(token).then(setRows).catch(() => {})
+    api.getMe(token).then(setPerfil).catch(() => {})
+  }, [token])
   useEffect(load, [load])
 
   async function enviar() {
@@ -381,9 +387,115 @@ function EmpAusencias({ token, toast }) {
     catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
+  // Días de asuntos propios aprobados este año
+  const diasPropiosUsados = rows.filter(r =>
+    r.tipo === 'Personal' && r.estado === 'aprobada' &&
+    new Date(r.desde).getFullYear() === anio
+  ).reduce((acc, r) => {
+    const d = Math.round((new Date(r.hasta) - new Date(r.desde)) / 86400000) + 1
+    return acc + d
+  }, 0)
+  const DIAS_PROPIOS_TOTAL = 2
+
+  // Construir mapa de días marcados para el calendario anual
+  // { 'YYYY-MM-DD': 'aprobada' | 'pendiente' | 'rechazada' }
+  const diasMarcados = {}
+  rows.forEach(r => {
+    const desde = new Date(r.desde)
+    const hasta  = new Date(r.hasta)
+    for (let d = new Date(desde); d <= hasta; d.setDate(d.getDate() + 1)) {
+      const key = d.toISOString().split('T')[0]
+      // aprobada tiene prioridad sobre pendiente
+      if (!diasMarcados[key] || r.estado === 'aprobada') diasMarcados[key] = r.estado
+    }
+  })
+
+  const colorEstado = { aprobada: '#8fb8a0', pendiente: '#c8a96e', rechazada: '#c0604a' }
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const diasSemana = ['L','M','X','J','V','S','D']
+
+  function renderMes(mes) {
+    const primerDia = (new Date(anio, mes, 1).getDay() || 7) - 1
+    const totalDias = new Date(anio, mes + 1, 0).getDate()
+    const hoy = today()
+    const celdas = []
+    for (let i = 0; i < primerDia; i++) celdas.push(null)
+    for (let d = 1; d <= totalDias; d++) celdas.push(d)
+
+    return (
+      <div key={mes} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--accent)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8, textAlign: 'center' }}>{meses[mes]}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1, marginBottom: 4 }}>
+          {diasSemana.map(d => <div key={d} style={{ textAlign: 'center', fontSize: 8, color: 'var(--muted)', padding: '2px 0' }}>{d}</div>)}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1 }}>
+          {celdas.map((d, i) => {
+            if (!d) return <div key={`e${i}`} />
+            const fecha = `${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+            const estado = diasMarcados[fecha]
+            const esHoy = fecha === hoy
+            return (
+              <div key={d} style={{ textAlign: 'center', fontSize: 10, padding: '3px 1px', borderRadius: 3, background: estado ? colorEstado[estado] + '55' : 'transparent', color: esHoy ? 'var(--accent)' : estado ? colorEstado[estado] : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent' }}>
+                {d}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
-      <SH title='Mis ausencias' sub={`${rows.length} solicitudes`}><Btn label='+ Solicitar' onClick={() => setShow(!show)} /></SH>
+      <SH title='Mis ausencias'><Btn label='+ Solicitar' onClick={() => setShow(!show)} /></SH>
+
+      {/* Balance de días */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+        {/* Vacaciones */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>🏖 Vacaciones</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent2)' }}>{perfil ? (perfil.dias_vacaciones || 22) - (perfil.dias_usados || 0) : '–'}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Disponibles</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--text)' }}>{perfil?.dias_usados || 0}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Disfrutados</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--muted)' }}>{perfil?.dias_vacaciones || 22}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Total</div>
+            </div>
+          </div>
+          <div style={{ height: 5, background: 'var(--surface2)', borderRadius: 3 }}>
+            <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((perfil?.dias_usados || 0) / (perfil?.dias_vacaciones || 22)) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
+          </div>
+        </div>
+        {/* Asuntos propios */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>📋 Asuntos propios</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent2)' }}>{DIAS_PROPIOS_TOTAL - diasPropiosUsados}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Disponibles</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--text)' }}>{diasPropiosUsados}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Disfrutados</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--muted)' }}>{DIAS_PROPIOS_TOTAL}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Total</div>
+            </div>
+          </div>
+          <div style={{ height: 5, background: 'var(--surface2)', borderRadius: 3 }}>
+            <div style={{ height: '100%', background: 'var(--accent)', width: `${Math.min((diasPropiosUsados / DIAS_PROPIOS_TOTAL) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Formulario solicitud */}
       {show && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 18 }}>
           <div className="mobile-1col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -397,6 +509,28 @@ function EmpAusencias({ token, toast }) {
           <div style={{ display: 'flex', gap: 8 }}><Btn label='Enviar' onClick={enviar} /><Btn label='Cancelar' ghost onClick={() => setShow(false)} /></div>
         </div>
       )}
+
+      {/* Calendario anual */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button onClick={() => setAnio(a => a - 1)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 4, cursor: 'pointer' }}>←</button>
+            <span style={{ fontSize: 15, fontWeight: 'bold' }}>{anio}</span>
+            <button onClick={() => setAnio(a => a + 1)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '4px 10px', borderRadius: 4, cursor: 'pointer' }}>→</button>
+          </div>
+          <div style={{ display: 'flex', gap: 12, fontSize: 10, color: 'var(--muted)' }}>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#8fb8a055', border: '1px solid #8fb8a0', marginRight: 4 }} />Aprobada</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#c8a96e55', border: '1px solid #c8a96e', marginRight: 4 }} />Pendiente</span>
+            <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#c0604a55', border: '1px solid #c0604a', marginRight: 4 }} />Rechazada</span>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 }}>
+          {Array.from({ length: 12 }, (_, i) => renderMes(i))}
+        </div>
+      </div>
+
+      {/* Lista de solicitudes */}
+      <div style={{ fontSize: 11, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>Mis solicitudes</div>
       <Tabla cols={['Tipo', 'Desde', 'Hasta', 'Motivo', 'Estado']}>
         {rows.map(a => (
           <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
