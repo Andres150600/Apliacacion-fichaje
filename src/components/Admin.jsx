@@ -310,13 +310,17 @@ function AdminEmpleados({ token, toast }) {
   )
 }
 
+const DIAS_SEM = [{ n: 'L', v: 1 }, { n: 'M', v: 2 }, { n: 'X', v: 3 }, { n: 'J', v: 4 }, { n: 'V', v: 5 }, { n: 'S', v: 6 }, { n: 'D', v: 7 }]
+const durTurno = (e, s) => { if (!e || !s) return '—'; const [eh,em]=e.split(':').map(Number); const [sh,sm]=s.split(':').map(Number); const d=(sh*60+sm)-(eh*60+em); return d>0?`${Math.floor(d/60)}h${d%60>0?' '+d%60+'m':''}`.trim():'—' }
+const nomDias  = d => DIAS_SEM.filter(x=>(d||[]).includes(x.v)).map(x=>x.n).join('·') || '—'
+
 function AdminTurnos({ token, toast }) {
-  const [turnos, setTurnos]     = useState([])
-  const [emps, setEmps]         = useState([])
-  const [editando, setEditando] = useState(null) // null | 'nuevo' | turno object
-  const DIAS = [{ n: 'L', v: 1 }, { n: 'M', v: 2 }, { n: 'X', v: 3 }, { n: 'J', v: 4 }, { n: 'V', v: 5 }, { n: 'S', v: 6 }, { n: 'D', v: 7 }]
-  const formVacio = { nombre: '', hora_entrada: '08:00', hora_salida: '17:00', empleado_id: '', dias_semana: [1, 2, 3, 4, 5] }
-  const [form, setForm] = useState(formVacio)
+  const [turnos, setTurnos]     = useState([])   // plantillas con .empleados[]
+  const [emps, setEmps]         = useState([])   // todos los empleados
+  const [editando, setEditando] = useState(null) // null | 'nuevo' | turno
+  const [seccion, setSeccion]   = useState('jornadas') // 'jornadas' | 'asignaciones'
+  const formVacio = { nombre: '', hora_entrada: '08:00', hora_salida: '18:00', dias_semana: [1,2,3,4,5] }
+  const [form, setForm]         = useState(formVacio)
 
   const load = useCallback(() => {
     Promise.all([api.getTurnos(token), api.getEmpleadosAdmin(token)])
@@ -324,151 +328,156 @@ function AdminTurnos({ token, toast }) {
   }, [token])
   useEffect(load, [load])
 
-  function abrirNuevo() { setForm(formVacio); setEditando('nuevo') }
-  function abrirEditar(t) {
-    setForm({ nombre: t.nombre, hora_entrada: t.hora_entrada?.slice(0,5) || '08:00', hora_salida: t.hora_salida?.slice(0,5) || '17:00', empleado_id: t.empleado_id || '', dias_semana: t.dias_semana || [1,2,3,4,5] })
-    setEditando(t)
-  }
-  function cerrar() { setEditando(null) }
+  const toggleDia = v => setForm(f => ({ ...f, dias_semana: f.dias_semana.includes(v) ? f.dias_semana.filter(d => d !== v) : [...f.dias_semana, v].sort((a,b)=>a-b) }))
 
   async function guardar() {
-    if (!form.nombre || !form.empleado_id) { toast('Nombre y empleado obligatorios', 'err'); return }
+    if (!form.nombre) { toast('El nombre es obligatorio', 'err'); return }
     try {
-      if (editando === 'nuevo') {
-        await api.postTurno(token, form)
-        toast('Turno creado')
-      } else {
-        await api.patchTurno(token, editando.id, form)
-        toast('Turno actualizado')
-      }
-      cerrar(); load()
+      if (editando === 'nuevo') { await api.postTurno(token, form); toast('Jornada creada') }
+      else { await api.patchTurno(token, editando.id, form); toast('Jornada actualizada') }
+      setEditando(null); load()
     } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
   async function eliminar(id) {
-    if (!confirm('¿Eliminar turno?')) return
-    try { await api.deleteTurno(token, id); toast('Eliminado'); load() }
+    const t = turnos.find(x => x.id === id)
+    if (t?.empleados?.length > 0) { toast('Desasigna los empleados antes de eliminar', 'err'); return }
+    try { await api.deleteTurno(token, id); toast('Jornada eliminada'); load() }
     catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
-  const toggleDia = v => setForm(f => ({ ...f, dias_semana: f.dias_semana.includes(v) ? f.dias_semana.filter(d => d !== v) : [...f.dias_semana, v].sort((a, b) => a - b) }))
-  const nomDias   = d => DIAS.filter(x => (d || []).includes(x.v)).map(x => x.n).join(' · ') || '—'
-  const durTurno  = (e, s) => { if (!e || !s) return '—'; const [eh,em]=e.split(':').map(Number); const [sh,sm]=s.split(':').map(Number); const d=(sh*60+sm)-(eh*60+em); return d>0?`${Math.floor(d/60)}h ${d%60>0?d%60+'m':''}`.trim():'—' }
-
-  // Empleados sin turno asignado
-  const idsConTurno = new Set(turnos.map(t => t.empleado_id))
-  const empsSinTurno = emps.filter(e => !idsConTurno.has(e.id))
+  async function asignar(empId, turnoId) {
+    try { await api.asignarTurno(token, empId, turnoId || null); load() }
+    catch (e) { toast('Error: ' + e.message, 'err') }
+  }
 
   return (
     <div>
-      <SH title='Horarios de empleados' sub={`${turnos.length} asignaciones`}><Btn label='+ Asignar horario' onClick={abrirNuevo} /></SH>
+      <SH title='Jornadas laborales' sub={`${turnos.length} jornadas · ${emps.length} empleados`}>
+        {seccion === 'jornadas' && <Btn label='+ Nueva jornada' onClick={() => { setForm(formVacio); setEditando('nuevo') }} />}
+      </SH>
 
-      {/* Formulario crear/editar */}
-      {editando && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 14, color: 'var(--accent)' }}>
-            {editando === 'nuevo' ? 'Nuevo horario' : `Editando: ${editando.nombre}`}
-          </div>
-          <div className="mobile-1col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <div>
-              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>NOMBRE DEL HORARIO</label>
-              <input placeholder='Ej: Jornada completa' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>EMPLEADO</label>
-              <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))}>
-                <option value=''>-- Seleccionar empleado --</option>
-                {emps.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>HORA ENTRADA</label>
-              <input type='time' value={form.hora_entrada} onChange={e => setForm(f => ({ ...f, hora_entrada: e.target.value }))} />
-            </div>
-            <div>
-              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>HORA SALIDA</label>
-              <input type='time' value={form.hora_salida} onChange={e => setForm(f => ({ ...f, hora_salida: e.target.value }))} />
-            </div>
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Días laborables</div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {DIAS.map(d => (
-                <button key={d.v} onClick={() => toggleDia(d.v)} style={{ width: 36, height: 36, borderRadius: '50%', background: form.dias_semana.includes(d.v) ? 'var(--accent)' : 'var(--surface2)', color: form.dias_semana.includes(d.v) ? '#0f0f0f' : 'var(--muted)', border: `1px solid ${form.dias_semana.includes(d.v) ? 'var(--accent)' : 'var(--border)'}`, fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{d.n}</button>
-              ))}
-            </div>
-          </div>
-          {form.hora_entrada && form.hora_salida && (
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
-              Duración diaria: <strong style={{ color: 'var(--accent2)' }}>{durTurno(form.hora_entrada, form.hora_salida)}</strong>
-              {' · '}Días/semana: <strong style={{ color: 'var(--accent2)' }}>{form.dias_semana.length}</strong>
+      {/* Selector de sección */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {['jornadas', 'asignaciones'].map(s => (
+          <button key={s} onClick={() => { setSeccion(s); setEditando(null) }} style={{ padding: '6px 16px', borderRadius: 4, fontSize: 11, fontWeight: 'bold', letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', background: seccion === s ? 'var(--accent)' : 'var(--surface2)', color: seccion === s ? '#0f0f0f' : 'var(--muted)', border: seccion === s ? 'none' : '1px solid var(--border)' }}>
+            {s === 'jornadas' ? `Jornadas (${turnos.length})` : `Asignaciones (${emps.length})`}
+          </button>
+        ))}
+      </div>
+
+      {/* ── SECCIÓN JORNADAS ──────────────────────────────────────────── */}
+      {seccion === 'jornadas' && (
+        <>
+          {/* Formulario crear/editar */}
+          {editando && (
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--accent)', marginBottom: 14 }}>
+                {editando === 'nuevo' ? 'Nueva jornada' : `Editando: ${editando.nombre}`}
+              </div>
+              <div className="mobile-1col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+                <div style={{ gridColumn: 'span 3' }}>
+                  <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>NOMBRE DE LA JORNADA</label>
+                  <input placeholder='Ej: Jornada Estándar, Media Jornada...' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} autoFocus />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>HORA ENTRADA</label>
+                  <input type='time' value={form.hora_entrada} onChange={e => setForm(f => ({ ...f, hora_entrada: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>HORA SALIDA</label>
+                  <input type='time' value={form.hora_salida} onChange={e => setForm(f => ({ ...f, hora_salida: e.target.value }))} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
+                  <div style={{ fontSize: 13, color: 'var(--accent2)', fontWeight: 'bold' }}>
+                    {durTurno(form.hora_entrada, form.hora_salida)}/día
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 }}>Días laborables</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {DIAS_SEM.map(d => (
+                    <button key={d.v} onClick={() => toggleDia(d.v)} style={{ width: 36, height: 36, borderRadius: '50%', background: form.dias_semana.includes(d.v) ? 'var(--accent)' : 'var(--surface2)', color: form.dias_semana.includes(d.v) ? '#0f0f0f' : 'var(--muted)', border: `1px solid ${form.dias_semana.includes(d.v) ? 'var(--accent)' : 'var(--border)'}`, fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{d.n}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn label={editando === 'nuevo' ? 'Crear jornada' : 'Guardar'} onClick={guardar} />
+                <Btn label='Cancelar' ghost onClick={() => setEditando(null)} />
+              </div>
             </div>
           )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Btn label={editando === 'nuevo' ? 'Crear horario' : 'Guardar cambios'} onClick={guardar} />
-            <Btn label='Cancelar' ghost onClick={cerrar} />
-          </div>
-        </div>
-      )}
 
-      {/* Lista de empleados con turno */}
-      {turnos.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>Con horario asignado</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 12 }}>
+          {/* Lista de jornadas */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))', gap: 14 }}>
             {turnos.map(t => (
               <div key={t.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
-                {/* Empleado */}
-                {t.empleados && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
-                    <Av name={t.empleados.nombre} size={32} />
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 'bold' }}>{t.empleados.nombre}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{t.nombre}</div>
-                    </div>
-                  </div>
-                )}
-                {/* Detalles horario */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                  <div style={{ background: 'var(--surface2)', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+                <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 10 }}>{t.nombre}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  <div style={{ background: 'var(--surface2)', borderRadius: 6, padding: '7px 10px', textAlign: 'center' }}>
                     <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Entrada</div>
-                    <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--accent2)' }}>{t.hora_entrada?.slice(0,5)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--accent2)' }}>{t.hora_entrada?.slice(0,5) || '—'}</div>
                   </div>
-                  <div style={{ background: 'var(--surface2)', borderRadius: 6, padding: '8px 10px', textAlign: 'center' }}>
+                  <div style={{ background: 'var(--surface2)', borderRadius: 6, padding: '7px 10px', textAlign: 'center' }}>
                     <div style={{ fontSize: 9, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>Salida</div>
-                    <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--danger)' }}>{t.hora_salida?.slice(0,5)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--danger)' }}>{t.hora_salida?.slice(0,5) || '—'}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
                   {nomDias(t.dias_semana)} · <span style={{ color: 'var(--accent)' }}>{durTurno(t.hora_entrada, t.hora_salida)}/día</span>
                 </div>
+                {/* Empleados asignados */}
+                <div style={{ marginBottom: 10 }}>
+                  {t.empleados?.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {t.empleados.map(e => (
+                        <span key={e.id} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)' }}>{e.nombre.split(' ')[0]}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>Sin empleados asignados</span>
+                  )}
+                </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => abrirEditar(t)} style={{ flex: 1, background: 'var(--surface2)', color: 'var(--text)', fontSize: 11, border: '1px solid var(--border)', padding: '6px 0', borderRadius: 4, cursor: 'pointer' }}>✎ Editar</button>
-                  <button onClick={() => eliminar(t.id)} style={{ flex: 1, background: 'transparent', color: 'var(--danger)', fontSize: 11, border: '1px solid var(--danger)', padding: '6px 0', borderRadius: 4, cursor: 'pointer' }}>✕ Eliminar</button>
+                  <button onClick={() => { setForm({ nombre: t.nombre, hora_entrada: t.hora_entrada?.slice(0,5)||'08:00', hora_salida: t.hora_salida?.slice(0,5)||'18:00', dias_semana: t.dias_semana||[1,2,3,4,5] }); setEditando(t) }} style={{ flex: 1, background: 'var(--surface2)', color: 'var(--text)', fontSize: 11, border: '1px solid var(--border)', padding: '6px 0', borderRadius: 4, cursor: 'pointer' }}>✎ Editar</button>
+                  <button onClick={() => eliminar(t.id)} style={{ background: 'transparent', color: 'var(--danger)', fontSize: 11, border: '1px solid var(--danger)', padding: '6px 12px', borderRadius: 4, cursor: 'pointer' }}>✕</button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+          {turnos.length === 0 && !editando && <Empty txt='Crea una jornada para empezar' />}
+        </>
       )}
 
-      {/* Empleados sin turno */}
-      {empsSinTurno.length > 0 && (
-        <div>
-          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>Sin horario asignado</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-            {empsSinTurno.map(e => (
-              <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
-                <Av name={e.nombre} size={28} />
-                <span style={{ fontSize: 13 }}>{e.nombre}</span>
-                <button onClick={() => { setForm({ ...formVacio, empleado_id: e.id }); setEditando('nuevo') }} style={{ background: 'var(--accent)', color: '#0f0f0f', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}>+ Asignar</button>
+      {/* ── SECCIÓN ASIGNACIONES ──────────────────────────────────────── */}
+      {seccion === 'asignaciones' && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          {turnos.length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+              Primero crea al menos una jornada en la pestaña "Jornadas"
+            </div>
+          )}
+          {emps.map((e, i) => (
+            <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < emps.length - 1 ? '1px solid var(--border)' : 'none' }}>
+              <Av name={e.nombre} size={32} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 'bold' }}>{e.nombre}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.cargo || e.departamento || '—'}</div>
               </div>
-            ))}
-          </div>
+              <select
+                value={e.turno_id || ''}
+                onChange={ev => asignar(e.id, ev.target.value)}
+                style={{ width: 180, fontSize: 12 }}
+              >
+                <option value=''>Sin jornada</option>
+                {turnos.map(t => <option key={t.id} value={t.id}>{t.nombre} ({t.hora_entrada?.slice(0,5)}–{t.hora_salida?.slice(0,5)})</option>)}
+              </select>
+            </div>
+          ))}
+          {emps.length === 0 && <Empty txt='Sin empleados' />}
         </div>
       )}
-
-      {turnos.length === 0 && empsSinTurno.length === 0 && !editando && <Empty txt='No hay empleados registrados' />}
     </div>
   )
 }
