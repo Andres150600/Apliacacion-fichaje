@@ -179,12 +179,12 @@ function PausaModal({ visible, onConfirm, onCancel }) {
         <div style={{ fontSize: 15, fontWeight: 'bold', marginBottom: 16 }}>¿Qué tipo de pausa?</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button onClick={() => onConfirm('Comida')} style={{ padding: '12px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
-            🍽 Comida / Almuerzo
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>Solo descuenta si supera los 30 min</div>
-          </button>
-          <button onClick={() => onConfirm('Descanso')} style={{ padding: '12px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
-            ⏸ Descanso
+            🍽 Comida
             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>Siempre descuenta del tiempo trabajado</div>
+          </button>
+          <button onClick={() => onConfirm('Almuerzo')} style={{ padding: '12px 14px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
+            🥗 Almuerzo
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>Solo descuenta si supera los 30 min</div>
           </button>
         </div>
         <button onClick={onCancel} style={{ marginTop: 12, width: '100%', padding: '8px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
