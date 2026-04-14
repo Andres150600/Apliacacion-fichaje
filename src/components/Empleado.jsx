@@ -73,12 +73,15 @@ function EmpleadoInner({ user, token, onLogout, toast, dark, toggleDark, fichaje
   const checkedIn = !!(fichajeHoy?.entrada && !fichajeHoy?.salida)
 
   const tabs = [
-    { id: 'fichar',     icon: '◷', label: 'Fichar' },
-    { id: 'historial',  icon: '▤', label: 'Historial' },
-    { id: 'ausencias',  icon: '◌', label: 'Ausencias' },
-    { id: 'horarios',   icon: '◑', label: 'Horarios' },
-    { id: 'equipo',     icon: '▦', label: 'Equipo' },
-    { id: 'documentos', icon: '▣', label: 'Docs' },
+    { id: 'fichar',       icon: '◷', label: 'Fichar' },
+    { id: 'tareas',       icon: '☑', label: 'Tareas' },
+    { id: 'estadisticas', icon: '▣', label: 'Stats' },
+    { id: 'historial',    icon: '▤', label: 'Historial' },
+    { id: 'ausencias',    icon: '◌', label: 'Ausencias' },
+    { id: 'horarios',     icon: '◑', label: 'Horarios' },
+    { id: 'perfil',       icon: '◉', label: 'Perfil' },
+    { id: 'equipo',       icon: '▦', label: 'Equipo' },
+    { id: 'documentos',   icon: '▣', label: 'Docs' },
   ]
 
   const sharedProps = { user, token, toast, checkedIn, fichajeHoy, pausas, pausaActiva, netMs, now, onFicharEntrada: ficharEntrada, onFicharSalida: ficharSalida, onPausar: pausar, onReanudar: reanudar, onRefresh: onRefreshFichaje }
@@ -142,12 +145,15 @@ function EmpleadoInner({ user, token, onLogout, toast, dark, toggleDark, fichaje
             netMs={netMs} pausaActiva={pausaActiva} fichajeHoy={fichajeHoy}
             onPausar={() => _setPausaModal(true)} onReanudar={reanudar} onSalida={ficharSalida}
           />
-          {tab === 'fichar'     && <EmpFichar {...sharedProps} onShowPausa={() => _setPausaModal(true)} />}
-          {tab === 'historial'  && <EmpHistorial token={token} />}
-          {tab === 'ausencias'  && <EmpAusencias token={token} toast={toast} />}
-          {tab === 'horarios'   && <EmpHorarios token={token} />}
-          {tab === 'equipo'     && <Calendario token={token} />}
-          {tab === 'documentos' && <EmpDocumentos token={token} />}
+          {tab === 'fichar'       && <EmpFichar {...sharedProps} onShowPausa={() => _setPausaModal(true)} />}
+          {tab === 'tareas'       && <EmpTareas token={token} toast={toast} now={now} />}
+          {tab === 'estadisticas' && <EmpEstadisticas token={token} />}
+          {tab === 'historial'    && <EmpHistorial token={token} />}
+          {tab === 'ausencias'    && <EmpAusencias token={token} toast={toast} />}
+          {tab === 'horarios'     && <EmpHorarios token={token} />}
+          {tab === 'perfil'       && <EmpPerfil token={token} />}
+          {tab === 'equipo'       && <Calendario token={token} />}
+          {tab === 'documentos'   && <EmpDocumentos token={token} />}
         </main>
       </div>
 
@@ -775,6 +781,252 @@ function EmpDocumentos({ token }) {
         ))}
       </div>
       {docs.length===0&&<Empty txt='El admin aún no ha añadido documentos'/>}
+    </div>
+  )
+}
+
+// ─── Tareas ───────────────────────────────────────────────────────────────────
+const CAT_COLORS = { General: '#5b8ec4', Reunión: '#9b8ec4', Desarrollo: '#8fb8a0', Administración: '#c8a96e', Soporte: '#c48e5b', Otro: '#c0604a' }
+const CATEGORIAS = ['General', 'Reunión', 'Desarrollo', 'Administración', 'Soporte', 'Otro']
+
+function EmpTareas({ token, toast, now }) {
+  const [tareas, setTareas]     = useState([])
+  const [filtro, setFiltro]     = useState('activas')
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm]         = useState({ nombre: '', categoria: 'General' })
+  const [loading, setLoading]   = useState(false)
+
+  const load = useCallback(() => { api.getTareas(token).then(setTareas).catch(() => {}) }, [token])
+  useEffect(load, [load])
+
+  const visibles = tareas.filter(t => filtro === 'activas' ? !t.completada : t.completada)
+
+  async function crearTarea() {
+    if (!form.nombre.trim()) { toast('Introduce el nombre de la tarea', 'err'); return }
+    setLoading(true)
+    try {
+      await api.postTarea(token, form)
+      toast('Tarea creada')
+      setForm({ nombre: '', categoria: 'General' })
+      setShowForm(false)
+      load()
+    } catch (e) { toast('Error: ' + e.message, 'err') }
+    finally { setLoading(false) }
+  }
+
+  async function accion(id, a) {
+    try { await api.patchTarea(token, id, { accion: a }); load() }
+    catch (e) { toast('Error: ' + e.message, 'err') }
+  }
+
+  async function eliminar(id) {
+    try { await api.deleteTarea(token, id); load() }
+    catch (e) { toast('Error: ' + e.message, 'err') }
+  }
+
+  function durTarea(t) {
+    let ms = t.duracion_ms || 0
+    if (t.inicio && !t.completada) ms += now - new Date(t.inicio)
+    return ms
+  }
+
+  return (
+    <div>
+      <SH title='Mis tareas' sub={`${tareas.filter(t => !t.completada).length} activas`}>
+        <Btn label='+ Nueva' onClick={() => setShowForm(s => !s)} />
+      </SH>
+
+      {showForm && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, marginBottom: 10 }}>
+            <input
+              placeholder='Nombre de la tarea...'
+              value={form.nombre}
+              onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && crearTarea()}
+              autoFocus
+            />
+            <select value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}>
+              {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn label={loading ? 'Creando...' : 'Crear tarea'} onClick={crearTarea} disabled={loading} />
+            <Btn label='Cancelar' ghost onClick={() => setShowForm(false)} />
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {['activas', 'completadas'].map(f => (
+          <button key={f} onClick={() => setFiltro(f)} style={{ padding: '5px 14px', borderRadius: 4, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', fontWeight: 'bold', cursor: 'pointer', background: filtro === f ? 'var(--accent)' : 'var(--surface2)', color: filtro === f ? '#0f0f0f' : 'var(--muted)', border: filtro === f ? 'none' : '1px solid var(--border)' }}>
+            {f === 'activas' ? `Activas (${tareas.filter(t => !t.completada).length})` : `Completadas (${tareas.filter(t => t.completada).length})`}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {visibles.map(t => {
+          const dur    = durTarea(t)
+          const activa = !!t.inicio && !t.completada
+          const cc     = CAT_COLORS[t.categoria] || '#5b8ec4'
+          return (
+            <div key={t.id} style={{ background: 'var(--surface)', border: `1px solid ${activa ? 'var(--accent2)' : 'var(--border)'}`, borderRadius: 8, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 'bold', color: t.completada ? 'var(--muted)' : 'var(--text)', textDecoration: t.completada ? 'line-through' : 'none' }}>{t.nombre}</span>
+                  <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 8, background: cc + '22', color: cc, border: `1px solid ${cc}44` }}>{t.categoria}</span>
+                  {activa && <Badge label='En curso' c='var(--accent2)' />}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtDur(dur)}{activa ? ' · ▶ temporizador activo' : ''}
+                </div>
+              </div>
+              {!t.completada && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {activa
+                    ? <button onClick={() => accion(t.id, 'parar')}     style={tBtn('rgba(200,169,110,0.3)', 'var(--accent)')} title='Pausar'>⏸</button>
+                    : <button onClick={() => accion(t.id, 'iniciar')}   style={tBtn('rgba(143,184,160,0.2)', 'var(--accent2)')} title='Iniciar'>▶</button>
+                  }
+                  <button onClick={() => accion(t.id, 'completar')} style={tBtn('var(--surface2)', 'var(--muted)')} title='Completar'>✓</button>
+                  <button onClick={() => eliminar(t.id)}             style={tBtn('var(--danger)', '#fff')} title='Eliminar'>×</button>
+                </div>
+              )}
+              {t.completada && (
+                <button onClick={() => eliminar(t.id)} style={tBtn('var(--danger)', '#fff')} title='Eliminar'>×</button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {visibles.length === 0 && <Empty txt={filtro === 'activas' ? 'Sin tareas activas · crea una con + Nueva' : 'Sin tareas completadas'} />}
+    </div>
+  )
+}
+
+function tBtn(bg, color) {
+  return { background: bg, color: color || '#0f0f0f', border: 'none', borderRadius: 4, padding: '6px 10px', fontSize: 14, cursor: 'pointer', flexShrink: 0 }
+}
+
+// ─── Estadísticas ─────────────────────────────────────────────────────────────
+function EmpEstadisticas({ token }) {
+  const [fichs, setFichs] = useState([])
+
+  useEffect(() => {
+    api.getFichajes(token, { limit: 90 }).then(setFichs).catch(() => {})
+  }, [token])
+
+  const hoy      = new Date()
+  const mesAct   = hoy.getMonth()
+  const anioAct  = hoy.getFullYear()
+  const dowHoy   = hoy.getDay() || 7
+  const lunes    = new Date(hoy); lunes.setDate(hoy.getDate() - dowHoy + 1); lunes.setHours(0,0,0,0)
+
+  const msToH = ms => Math.round(ms / 36000) / 100  // 2 decimales
+
+  const delMes = fichs.filter(f => {
+    const fd = new Date(f.fecha)
+    return fd.getMonth() === mesAct && fd.getFullYear() === anioAct && f.salida
+  })
+  const delaSemana = fichs.filter(f => new Date(f.fecha) >= lunes && f.salida)
+
+  const horasMes    = msToH(delMes.reduce((a, f) => a + (new Date(f.salida) - new Date(f.entrada)), 0))
+  const horasSemana = msToH(delaSemana.reduce((a, f) => a + (new Date(f.salida) - new Date(f.entrada)), 0))
+  const diasMes     = delMes.length
+  const promDiario  = diasMes > 0 ? msToH(delMes.reduce((a, f) => a + (new Date(f.salida) - new Date(f.entrada)), 0) / diasMes) : 0
+
+  // Bar chart: últimos 14 días
+  const barData = Array.from({ length: 14 }, (_, i) => {
+    const d     = new Date(hoy); d.setDate(hoy.getDate() - (13 - i))
+    const fecha = d.toISOString().split('T')[0]
+    const f     = fichs.find(x => x.fecha === fecha)
+    const h     = f?.salida ? msToH(new Date(f.salida) - new Date(f.entrada)) : 0
+    const dow   = d.getDay()
+    return { fecha, h, label: String(d.getDate()), isToday: i === 13, isFinde: dow === 0 || dow === 6 }
+  })
+
+  const maxH = Math.max(...barData.map(b => b.h), 8)
+
+  const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+  return (
+    <div>
+      <SH title='Mis estadísticas' sub={`${MESES[mesAct]} ${anioAct}`} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12, marginBottom: 24 }}>
+        <KpiCard label='Horas este mes'    value={`${horasMes}h`}   color='var(--accent2)' />
+        <KpiCard label='Horas esta semana' value={`${horasSemana}h`} color='var(--accent)' />
+        <KpiCard label='Días trabajados'   value={`${diasMes} días`} color='var(--text)' />
+        <KpiCard label='Promedio diario'   value={`${promDiario}h`}  color='var(--muted)' />
+      </div>
+
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18 }}>
+        <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 16 }}>Últimos 14 días</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 130, paddingBottom: 20, position: 'relative' }}>
+          {/* Línea de referencia 8h */}
+          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 20 + (8 / maxH) * 110, borderTop: '1px dashed var(--border)', pointerEvents: 'none' }}>
+            <span style={{ fontSize: 8, color: 'var(--muted)', position: 'absolute', right: 0, top: -10 }}>8h</span>
+          </div>
+          {barData.map(b => (
+            <div key={b.fecha} title={`${b.h}h`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, height: '100%', justifyContent: 'flex-end' }}>
+              <div style={{ width: '100%', background: b.isToday ? 'var(--accent2)' : b.isFinde ? 'var(--surface2)' : 'var(--accent)', borderRadius: '3px 3px 0 0', height: `${Math.max((b.h / maxH) * 110, b.h > 0 ? 3 : 0)}px`, transition: 'height .4s' }} />
+              <div style={{ fontSize: 9, color: b.isToday ? 'var(--accent)' : 'var(--muted)', marginTop: 4, fontWeight: b.isToday ? 'bold' : 'normal' }}>{b.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function KpiCard({ label, value, color }) {
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+      <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 'bold', color, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    </div>
+  )
+}
+
+// ─── Perfil ───────────────────────────────────────────────────────────────────
+function EmpPerfil({ token }) {
+  const [perfil, setPerfil] = useState(null)
+
+  useEffect(() => { api.getMe(token).then(setPerfil).catch(() => {}) }, [token])
+
+  if (!perfil) return <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--muted)', fontSize: 12 }}>Cargando...</div>
+
+  const campos = [
+    { label: 'Nombre completo',    value: perfil.nombre },
+    { label: 'Email',              value: perfil.email || '—' },
+    { label: 'Cargo',              value: perfil.cargo || '—' },
+    { label: 'Departamento',       value: perfil.departamento || '—' },
+    { label: 'Días de vacaciones', value: `${perfil.dias_vacaciones || 22} días` },
+    { label: 'Días disfrutados',   value: `${perfil.dias_usados || 0} días` },
+  ]
+
+  return (
+    <div>
+      <SH title='Mi perfil' sub='Para cambiar datos, contacta con el administrador' />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20, marginBottom: 20 }}>
+        <Av name={perfil.nombre} size={56} />
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 2 }}>{perfil.nombre}</div>
+          {perfil.cargo && <div style={{ fontSize: 13, color: 'var(--accent)' }}>{perfil.cargo}</div>}
+          {perfil.departamento && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{perfil.departamento}</div>}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10 }}>
+        {campos.map(c => (
+          <div key={c.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 14 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>{c.label}</div>
+            <div style={{ fontSize: 14, fontWeight: 'bold' }}>{c.value}</div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

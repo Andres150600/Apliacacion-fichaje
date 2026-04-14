@@ -78,4 +78,10 @@ export const api = {
   getFichajesManuales: (token)         => get('/fichajes-manuales', token),
   postFichajeManual:   (token, data)   => post('/fichajes-manuales', data, token),
   patchFichajeManual:  (token, id, estado) => patch(`/fichajes-manuales/${id}`, { estado }, token),
+
+  // Tareas
+  getTareas:   (token)               => get('/tareas', token),
+  postTarea:   (token, data)         => post('/tareas', data, token),
+  patchTarea:  (token, id, data)     => patch(`/tareas/${id}`, data, token),
+  deleteTarea: (token, id)           => del(`/tareas/${id}`, token),
 }
