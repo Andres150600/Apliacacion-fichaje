@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
-import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, today, COLORS } from './shared'
+import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, today, COLORS, diasLaborables, vacGanadas } from './shared'
 
 function EmpleadoWrapper(props) {
   const [pausaModal, setPausaModal] = useState(false)
@@ -208,7 +208,8 @@ function EmpFichar({ user, token, checkedIn, fichajeHoy, pausas, pausaActiva, ne
 
   useEffect(() => { api.getMe(token).then(setVac).catch(() => {}) }, [token])
 
-  const rest = vac ? (vac.dias_vacaciones || 22) - (vac.dias_usados || 0) : null
+  const totalVac = vacGanadas()
+  const rest = vac ? Math.max(0, totalVac - (vac.dias_usados || 0)) : null
 
   // Calcular duración de pausa activa para mostrar
   const durPausaActiva = pausaActiva ? (now - new Date(pausaActiva.inicio)) : 0
@@ -284,9 +285,9 @@ function EmpFichar({ user, token, checkedIn, fichajeHoy, pausas, pausaActiva, ne
             <span style={{ fontSize: 13, color: 'var(--accent2)', fontWeight: 'bold' }}>{rest} disponibles</span>
           </div>
           <div style={{ height: 6, background: 'var(--surface2)', borderRadius: 3 }}>
-            <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((vac.dias_usados || 0) / (vac.dias_vacaciones || 22)) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
+            <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((vac.dias_usados || 0) / totalVac) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
           </div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{vac.dias_vacaciones || 22} días totales</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>{totalVac} días ganados este año · {rest} disponibles</div>
         </div>
       )}
 
@@ -395,31 +396,34 @@ function EmpAusencias({ token, toast }) {
     catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
-  // Días de asuntos propios aprobados este año
+  // ── Cálculo de vacaciones ───────────────────────────────────────────────────
+  // Días ganados este año: proporcional al día actual del año (base 25 días)
+  const vacTotal   = vacGanadas(anio)
+  // Días usados: solo ausencias tipo "Vacaciones" aprobadas de este año, contando laborables
+  const vacUsados  = rows.filter(r =>
+    r.tipo === 'Vacaciones' && r.estado === 'aprobada' &&
+    new Date(r.desde).getFullYear() === anio
+  ).reduce((acc, r) => acc + diasLaborables(r.desde, r.hasta), 0)
+  const vacDisp    = Math.max(0, vacTotal - vacUsados)
+
+  // Asuntos propios: contamos días laborables también
   const diasPropiosUsados = rows.filter(r =>
     r.tipo === 'Personal' && r.estado === 'aprobada' &&
     new Date(r.desde).getFullYear() === anio
-  ).reduce((acc, r) => {
-    const d = Math.round((new Date(r.hasta) - new Date(r.desde)) / 86400000) + 1
-    return acc + d
-  }, 0)
+  ).reduce((acc, r) => acc + diasLaborables(r.desde, r.hasta), 0)
   const DIAS_PROPIOS_TOTAL = 2
 
   // Construir mapa de días marcados para el calendario anual
-  // { 'YYYY-MM-DD': 'aprobada' | 'pendiente' | 'rechazada' }
   const diasMarcados = {}
   rows.forEach(r => {
-    const desde = new Date(r.desde)
-    const hasta  = new Date(r.hasta)
-    for (let d = new Date(desde); d <= hasta; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(r.desde); d <= new Date(r.hasta); d.setDate(d.getDate() + 1)) {
       const key = d.toISOString().split('T')[0]
-      // aprobada tiene prioridad sobre pendiente
       if (!diasMarcados[key] || r.estado === 'aprobada') diasMarcados[key] = r.estado
     }
   })
 
   const colorEstado = { aprobada: '#8fb8a0', pendiente: '#c8a96e', rechazada: '#c0604a' }
-  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const meses      = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
   const diasSemana = ['L','M','X','J','V','S','D']
 
   function renderMes(mes) {
@@ -439,11 +443,12 @@ function EmpAusencias({ token, toast }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 1 }}>
           {celdas.map((d, i) => {
             if (!d) return <div key={`e${i}`} />
-            const fecha = `${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
-            const estado = diasMarcados[fecha]
-            const esHoy = fecha === hoy
+            const fecha   = `${anio}-${String(mes+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+            const estado  = diasMarcados[fecha]
+            const esHoy   = fecha === hoy
+            const esFinde = [0, 6].includes(new Date(anio, mes, d).getDay())
             return (
-              <div key={d} style={{ textAlign: 'center', fontSize: 10, padding: '3px 1px', borderRadius: 3, background: estado ? colorEstado[estado] + '55' : 'transparent', color: esHoy ? 'var(--accent)' : estado ? colorEstado[estado] : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent' }}>
+              <div key={d} style={{ textAlign: 'center', fontSize: 10, padding: '3px 1px', borderRadius: 3, background: estado ? colorEstado[estado] + '55' : esFinde ? 'rgba(128,128,128,0.1)' : 'transparent', color: esHoy ? 'var(--accent)' : estado ? colorEstado[estado] : esFinde ? 'var(--border)' : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent' }}>
                 {d}
               </div>
             )
@@ -464,21 +469,22 @@ function EmpAusencias({ token, toast }) {
           <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 10 }}>🏖 Vacaciones</div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent2)' }}>{perfil ? (perfil.dias_vacaciones || 22) - (perfil.dias_usados || 0) : '–'}</div>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--accent2)' }}>{vacDisp}</div>
               <div style={{ fontSize: 10, color: 'var(--muted)' }}>Disponibles</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--text)' }}>{perfil?.dias_usados || 0}</div>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--text)' }}>{vacUsados}</div>
               <div style={{ fontSize: 10, color: 'var(--muted)' }}>Disfrutados</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--muted)' }}>{perfil?.dias_vacaciones || 22}</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Total</div>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--muted)' }}>{vacTotal}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Ganados</div>
             </div>
           </div>
           <div style={{ height: 5, background: 'var(--surface2)', borderRadius: 3 }}>
-            <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((perfil?.dias_usados || 0) / (perfil?.dias_vacaciones || 22)) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
+            <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min((vacUsados / Math.max(vacTotal, 1)) * 100, 100)}%`, borderRadius: 3, transition: 'width .3s' }} />
           </div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 5 }}>Base anual: 25 días · días laborables</div>
         </div>
         {/* Asuntos propios */}
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
@@ -673,8 +679,8 @@ function EmpHorarios({ token }) {
                 const esHoy = fecha === today()
                 const esFinde = [6,0].includes(new Date(anio, mes, dia).getDay())
                 return (
-                  <div key={dia} style={{ borderRadius: 6, padding: '6px 4px', textAlign: 'center', background: esHoy ? 'rgba(200,169,110,0.15)' : horas > 0 ? 'var(--surface2)' : 'transparent', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent', minHeight: 52 }}>
-                    <div style={{ fontSize: 11, color: esHoy ? 'var(--accent)' : esFinde ? 'var(--muted)' : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', marginBottom: 2 }}>{dia}</div>
+                  <div key={dia} style={{ borderRadius: 6, padding: '6px 4px', textAlign: 'center', background: esHoy ? 'rgba(200,169,110,0.15)' : esFinde ? 'rgba(128,128,128,0.07)' : horas > 0 ? 'var(--surface2)' : 'transparent', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent', minHeight: 52 }}>
+                    <div style={{ fontSize: 11, color: esHoy ? 'var(--accent)' : esFinde ? 'var(--border)' : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', marginBottom: 2 }}>{dia}</div>
                     {horas > 0 ? (
                       <div style={{ fontSize: 10, color: 'var(--accent2)', fontWeight: 'bold' }}>{horas % 1 === 0 ? horas : horas.toFixed(1)}h</div>
                     ) : (
@@ -730,9 +736,10 @@ function Calendario({ token }) {
           {Array.from({length:diasMes}).map((_,i)=>{
             const dia=i+1; const ad=ausDelDia(dia)
             const esHoy=new Date().getDate()===dia&&new Date().getMonth()===mes&&new Date().getFullYear()===anio
+            const esFinde=[0,6].includes(new Date(anio,mes,dia).getDay())
             return (
-              <div key={dia} style={{ minHeight:36,borderRadius:4,padding:3,background:esHoy?'rgba(200,169,110,0.15)':ad.length>0?'rgba(143,184,160,0.08)':'transparent',border:esHoy?'1px solid var(--accent)':'1px solid transparent' }}>
-                <div style={{ fontSize:11,textAlign:'center',color:esHoy?'var(--accent)':'var(--text)',fontWeight:esHoy?'bold':'normal' }}>{dia}</div>
+              <div key={dia} style={{ minHeight:36,borderRadius:4,padding:3,background:esHoy?'rgba(200,169,110,0.15)':esFinde?'rgba(128,128,128,0.08)':ad.length>0?'rgba(143,184,160,0.08)':'transparent',border:esHoy?'1px solid var(--accent)':'1px solid transparent' }}>
+                <div style={{ fontSize:11,textAlign:'center',color:esHoy?'var(--accent)':esFinde?'var(--border)':'var(--text)',fontWeight:esHoy?'bold':'normal' }}>{dia}</div>
                 {ad.slice(0,2).map((a,j)=><div key={j} style={{ fontSize:9,background:COLORS[j]+'33',color:COLORS[j],borderRadius:2,padding:'1px 3px',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{a.empleados?.nombre?.split(' ')[0]}</div>)}
                 {ad.length>2&&<div style={{ fontSize:9,color:'var(--muted)' }}>+{ad.length-2}</div>}
               </div>

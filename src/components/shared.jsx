@@ -12,6 +12,25 @@ export const fmtDurS = ms => {
   return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`
 }
 export const today = () => new Date().toISOString().split('T')[0]
+
+// Cuenta días laborables (lun-vie) en un rango de fechas
+export function diasLaborables(desde, hasta) {
+  let count = 0
+  for (let d = new Date(desde); d <= new Date(hasta); d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) count++
+  }
+  return count
+}
+
+// Días de vacaciones ganados hasta hoy en el año dado (base 25 días anuales)
+export function vacGanadas(anio = new Date().getFullYear()) {
+  const inicio   = new Date(anio, 0, 1)
+  const fin      = new Date(anio, 11, 31)
+  const diasAnio = Math.round((fin - inicio) / 86400000) + 1
+  const diaAct   = Math.min(Math.round((new Date() - inicio) / 86400000) + 1, diasAnio)
+  return Math.round((diaAct / diasAnio) * 25)
+}
 export const ini   = n => n.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
 export const COLORS = ['#c8a96e', '#8fb8a0', '#5b8ec4', '#c0604a', '#9b8ec4', '#c48e5b']
 
