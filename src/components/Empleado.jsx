@@ -76,6 +76,7 @@ function EmpleadoInner({ user, token, onLogout, toast, dark, toggleDark, fichaje
     { id: 'fichar',     icon: '◷', label: 'Fichar' },
     { id: 'historial',  icon: '▤', label: 'Historial' },
     { id: 'ausencias',  icon: '◌', label: 'Ausencias' },
+    { id: 'horarios',   icon: '◑', label: 'Horarios' },
     { id: 'equipo',     icon: '▦', label: 'Equipo' },
     { id: 'documentos', icon: '▣', label: 'Docs' },
   ]
@@ -144,6 +145,7 @@ function EmpleadoInner({ user, token, onLogout, toast, dark, toggleDark, fichaje
           {tab === 'fichar'     && <EmpFichar {...sharedProps} onShowPausa={() => _setPausaModal(true)} />}
           {tab === 'historial'  && <EmpHistorial token={token} />}
           {tab === 'ausencias'  && <EmpAusencias token={token} toast={toast} />}
+          {tab === 'horarios'   && <EmpHorarios token={token} />}
           {tab === 'equipo'     && <Calendario token={token} />}
           {tab === 'documentos' && <EmpDocumentos token={token} />}
         </main>
@@ -543,6 +545,142 @@ function EmpAusencias({ token, toast }) {
         ))}
       </Tabla>
       {rows.length === 0 && <Empty txt='Sin solicitudes' />}
+    </div>
+  )
+}
+
+// ─── Horarios ────────────────────────────────────────────────────────────────
+function EmpHorarios({ token }) {
+  const [turnos, setTurnos] = useState([])
+  const [mes, setMes]       = useState(new Date().getMonth())
+  const [anio, setAnio]     = useState(new Date().getFullYear())
+
+  useEffect(() => { api.getTurnos(token).then(setTurnos).catch(() => {}) }, [token])
+
+  const mesesNombres = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+  const diasSemana   = ['L','M','X','J','V','S','D']
+
+  // Calcula horas diarias de un turno (hora_entrada y hora_salida son strings "HH:MM:SS")
+  function horasTurno(t) {
+    if (!t?.hora_entrada || !t?.hora_salida) return 0
+    const [eh, em] = t.hora_entrada.split(':').map(Number)
+    const [sh, sm] = t.hora_salida.split(':').map(Number)
+    return ((sh * 60 + sm) - (eh * 60 + em)) / 60
+  }
+
+  // Dado un día del mes (1-based), devuelve el turno activo ese día
+  // dia_semana: 0=Dom,1=Lun...6=Sab → convertimos a 1=Lun...7=Dom
+  function turnoDelDia(dia) {
+    const dow = new Date(anio, mes, dia).getDay() // 0=Dom
+    const dowISO = dow === 0 ? 7 : dow            // 1=Lun...7=Dom
+    return turnos.find(t => (t.dias_semana || [1,2,3,4,5]).includes(dowISO)) || null
+  }
+
+  const totalDias = new Date(anio, mes + 1, 0).getDate()
+
+  // Horas teóricas del mes
+  const horasMes = Array.from({ length: totalDias }, (_, i) => {
+    const t = turnoDelDia(i + 1)
+    return t ? horasTurno(t) : 0
+  }).reduce((a, b) => a + b, 0)
+
+  // Horas teóricas de la semana actual
+  const hoy = new Date()
+  const dowHoy = hoy.getDay() || 7
+  const lunes  = new Date(hoy); lunes.setDate(hoy.getDate() - dowHoy + 1)
+  const horasSemana = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(lunes); d.setDate(lunes.getDate() + i)
+    if (d.getMonth() !== mes || d.getFullYear() !== anio) {
+      // Si el día cae fuera del mes seleccionado, calculamos igual por día de semana
+      const dow = d.getDay() === 0 ? 7 : d.getDay()
+      const t = turnos.find(t2 => (t2.dias_semana || [1,2,3,4,5]).includes(dow))
+      return t ? horasTurno(t) : 0
+    }
+    const t = turnoDelDia(d.getDate())
+    return t ? horasTurno(t) : 0
+  }).reduce((a, b) => a + b, 0)
+
+  const primerDia = (new Date(anio, mes, 1).getDay() || 7) - 1
+
+  return (
+    <div>
+      <SH title='Mis horarios' sub={turnos.length > 0 ? turnos.map(t => t.nombre).join(', ') : 'Sin turno asignado'} />
+
+      {turnos.length === 0 ? (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+          No tienes ningún turno asignado. Contacta con tu administrador.
+        </div>
+      ) : (
+        <>
+          {/* Resumen del turno */}
+          {turnos.map(t => (
+            <div key={t.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 14, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ fontSize: 28 }}>🕐</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 'bold' }}>{t.nombre}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  {t.hora_entrada?.slice(0,5)} – {t.hora_salida?.slice(0,5)}
+                  <span style={{ marginLeft: 10, color: 'var(--accent)' }}>{horasTurno(t).toFixed(1)}h / día</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                  {(t.dias_semana || [1,2,3,4,5]).map(d => ['','Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][d]).join(' · ')}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Tarjetas horas teóricas */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Horas teóricas · Semana actual</div>
+              <div style={{ fontSize: 32, fontWeight: 'bold', color: 'var(--accent)', fontVariantNumeric: 'tabular-nums' }}>{horasSemana.toFixed(1)}h</div>
+            </div>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18, textAlign: 'center' }}>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Horas teóricas · {mesesNombres[mes]}</div>
+              <div style={{ fontSize: 32, fontWeight: 'bold', color: 'var(--accent2)', fontVariantNumeric: 'tabular-nums' }}>{horasMes.toFixed(1)}h</div>
+            </div>
+          </div>
+
+          {/* Calendario mensual con horas por día */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <button onClick={() => { if (mes===0){setMes(11);setAnio(a=>a-1)}else setMes(m=>m-1) }} style={{ background:'var(--surface2)',border:'1px solid var(--border)',color:'var(--text)',padding:'4px 12px',borderRadius:4,cursor:'pointer' }}>←</button>
+              <span style={{ fontSize: 15, fontWeight: 'bold' }}>{mesesNombres[mes]} {anio}</span>
+              <button onClick={() => { if (mes===11){setMes(0);setAnio(a=>a+1)}else setMes(m=>m+1) }} style={{ background:'var(--surface2)',border:'1px solid var(--border)',color:'var(--text)',padding:'4px 12px',borderRadius:4,cursor:'pointer' }}>→</button>
+            </div>
+
+            {/* Cabecera días semana */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4, marginBottom: 4 }}>
+              {diasSemana.map(d => (
+                <div key={d} style={{ textAlign: 'center', fontSize: 10, color: 'var(--muted)', padding: '4px 0', fontWeight: 'bold' }}>{d}</div>
+              ))}
+            </div>
+
+            {/* Días */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
+              {Array.from({ length: primerDia }).map((_, i) => <div key={`e${i}`} />)}
+              {Array.from({ length: totalDias }, (_, i) => {
+                const dia   = i + 1
+                const t     = turnoDelDia(dia)
+                const horas = t ? horasTurno(t) : 0
+                const fecha = `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
+                const esHoy = fecha === today()
+                const esFinde = [6,0].includes(new Date(anio, mes, dia).getDay())
+                return (
+                  <div key={dia} style={{ borderRadius: 6, padding: '6px 4px', textAlign: 'center', background: esHoy ? 'rgba(200,169,110,0.15)' : horas > 0 ? 'var(--surface2)' : 'transparent', border: esHoy ? '1px solid var(--accent)' : '1px solid transparent', minHeight: 52 }}>
+                    <div style={{ fontSize: 11, color: esHoy ? 'var(--accent)' : esFinde ? 'var(--muted)' : 'var(--text)', fontWeight: esHoy ? 'bold' : 'normal', marginBottom: 2 }}>{dia}</div>
+                    {horas > 0 ? (
+                      <div style={{ fontSize: 10, color: 'var(--accent2)', fontWeight: 'bold' }}>{horas % 1 === 0 ? horas : horas.toFixed(1)}h</div>
+                    ) : (
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>–</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
