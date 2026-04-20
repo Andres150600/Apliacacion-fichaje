@@ -4,7 +4,9 @@ import { api } from '../lib/api'
 import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, fmt, fmtDate, fmtDur, today, COLORS, festivosNacionales } from './shared'
 
 export default function Admin({ user, token, onLogout, toast, dark, toggleDark }) {
-  const [tab, setTab] = useState('dashboard')
+  const [tab, setTab] = useState(() => localStorage.getItem('wc_admin_tab') || 'dashboard')
+
+  const cambiarTab = t => { localStorage.setItem('wc_admin_tab', t); setTab(t) }
   const [pend, setPend] = useState(0)
   const [nAlertas, setNAlertas] = useState(0)
 
@@ -37,7 +39,7 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
         </div>
         <nav style={{ flex: 1, padding: '10px 0' }}>
           {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 18px', background: tab === t.id ? 'var(--surface2)' : 'transparent', color: tab === t.id ? 'var(--accent)' : 'var(--muted)', textAlign: 'left', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', borderLeft: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent', borderRight: 'none', borderTop: 'none', borderBottom: 'none' }}>
+            <button key={t.id} onClick={() => cambiarTab(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 18px', background: tab === t.id ? 'var(--surface2)' : 'transparent', color: tab === t.id ? 'var(--accent)' : 'var(--muted)', textAlign: 'left', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', borderLeft: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent', borderRight: 'none', borderTop: 'none', borderBottom: 'none' }}>
               <span style={{ fontSize: 14 }}>{t.icon}</span>{t.label}
               {t.id === 'ausencias' && pend > 0 && <span style={{ background: 'var(--danger)', color: '#fff', borderRadius: 10, fontSize: 10, padding: '1px 6px', marginLeft: 'auto' }}>{pend}</span>}
               {t.id === 'alertas' && nAlertas > 0 && <span style={{ background: 'var(--danger)', color: '#fff', borderRadius: 10, fontSize: 10, padding: '1px 6px', marginLeft: 'auto' }}>{nAlertas}</span>}
@@ -60,7 +62,7 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
       <nav className="bottom-nav">
         <div className="bottom-nav-inner">
           {tabs.map(t => (
-            <button key={t.id} className={`bnav-item${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
+            <button key={t.id} className={`bnav-item${tab === t.id ? ' active' : ''}`} onClick={() => cambiarTab(t.id)}>
               {t.id === 'ausencias' && pend > 0 && <span className="nbadge">{pend}</span>}
               {t.id === 'alertas' && nAlertas > 0 && <span className="nbadge">{nAlertas}</span>}
               <span className="bnav-icon">{t.icon}</span><span>{t.label}</span>

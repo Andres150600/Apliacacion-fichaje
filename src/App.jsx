@@ -84,6 +84,7 @@ export default function App() {
 
   const logout = () => {
     localStorage.removeItem('wc_session')
+    localStorage.removeItem('wc_admin_tab')
     setUser(null); setToken(null); setView('login')
     setLoginTime(null); setFichajeHoy(null); setPausas([]); setPausaActiva(null)
   }
