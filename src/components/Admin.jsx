@@ -247,20 +247,26 @@ function AdminAusencias({ token, toast }) {
 }
 
 function AdminEmpleados({ token, toast }) {
-  const [emps, setEmps] = useState([])
-  const [show, setShow] = useState(false)
-  const [form, setForm] = useState({ nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 22 })
+  const [emps, setEmps]     = useState([])
+  const [turnos, setTurnos] = useState([])
+  const [show, setShow]     = useState(false)
+  const formVacio = { nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 25, turno_id: '' }
+  const [form, setForm]     = useState(formVacio)
+
   const load = useCallback(() => {
-    api.getEmpleadosAdmin(token).then(setEmps).catch(() => {})
+    Promise.all([api.getEmpleadosAdmin(token), api.getTurnos(token)])
+      .then(([e, t]) => { setEmps(e); setTurnos(t) }).catch(() => {})
   }, [token])
   useEffect(load, [load])
 
   async function guardar() {
     if (!form.nombre || !form.email || !form.pin) { toast('Nombre, email y PIN obligatorios', 'err'); return }
     try {
-      await api.postEmpleado(token, form)
+      const payload = { ...form }
+      if (!payload.turno_id) delete payload.turno_id
+      await api.postEmpleado(token, payload)
       toast('Empleado añadido')
-      setForm({ nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 22 })
+      setForm(formVacio)
       setShow(false); load()
     } catch (e) { toast('Error: ' + e.message, 'err') }
   }
@@ -283,28 +289,42 @@ function AdminEmpleados({ token, toast }) {
               <input key={k} placeholder={p} value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} maxLength={k === 'pin' ? 6 : undefined} />
             ))}
             <input type='number' placeholder='Días vacaciones' value={form.dias_vacaciones} onChange={e => setForm(f => ({ ...f, dias_vacaciones: Number(e.target.value) }))} />
+            <div>
+              <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>JORNADA</label>
+              <select value={form.turno_id} onChange={e => setForm(f => ({ ...f, turno_id: e.target.value }))} style={{ width: '100%' }}>
+                <option value=''>Sin jornada asignada</option>
+                {turnos.map(t => <option key={t.id} value={t.id}>{t.nombre} ({t.hora_entrada?.slice(0,5)}–{t.hora_salida?.slice(0,5)})</option>)}
+              </select>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}><Btn label='Guardar' onClick={guardar} /><Btn label='Cancelar' ghost onClick={() => setShow(false)} /></div>
         </div>
       )}
       <div className="emp-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
-        {emps.map((e, i) => (
-          <div key={e.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <Av name={e.nombre} size={34} color={COLORS[i % COLORS.length]} />
-              <div><div style={{ fontSize: 14, fontWeight: 'bold' }}>{e.nombre}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.cargo}</div></div>
+        {emps.map((e, i) => {
+          const turno = turnos.find(t => t.id === e.turno_id)
+          return (
+            <div key={e.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <Av name={e.nombre} size={34} color={COLORS[i % COLORS.length]} />
+                <div><div style={{ fontSize: 14, fontWeight: 'bold' }}>{e.nombre}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.cargo}</div></div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>{e.departamento} · {e.email}</div>
+              <div style={{ fontSize: 11, color: turno ? 'var(--accent)' : 'var(--muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>◑</span>
+                <span>{turno ? `${turno.nombre} · ${turno.hora_entrada?.slice(0,5)}–${turno.hora_salida?.slice(0,5)}` : 'Sin jornada'}</span>
+              </div>
+              <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--accent2)' }}>{e.dias_usados || 0} usados</span>
+                <span style={{ color: 'var(--muted)' }}>{(e.dias_vacaciones || 25) - (e.dias_usados || 0)} restantes</span>
+              </div>
+              <div style={{ height: 4, background: 'var(--surface2)', borderRadius: 2, marginBottom: 10 }}>
+                <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((e.dias_usados || 0) / (e.dias_vacaciones || 25)) * 100, 100)}%`, borderRadius: 2 }} />
+              </div>
+              <button onClick={() => eliminar(e.id)} style={{ background: 'transparent', color: 'var(--danger)', fontSize: 11, border: '1px solid var(--danger)', padding: '4px 10px', borderRadius: 4, width: '100%' }}>Eliminar</button>
             </div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>{e.departamento} · {e.email}</div>
-            <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--accent2)' }}>{e.dias_usados || 0} usados</span>
-              <span style={{ color: 'var(--muted)' }}>{(e.dias_vacaciones || 22) - (e.dias_usados || 0)} restantes</span>
-            </div>
-            <div style={{ height: 4, background: 'var(--surface2)', borderRadius: 2, marginBottom: 10 }}>
-              <div style={{ height: '100%', background: 'var(--accent2)', width: `${Math.min(((e.dias_usados || 0) / (e.dias_vacaciones || 22)) * 100, 100)}%`, borderRadius: 2 }} />
-            </div>
-            <button onClick={() => eliminar(e.id)} style={{ background: 'transparent', color: 'var(--danger)', fontSize: 11, border: '1px solid var(--danger)', padding: '4px 10px', borderRadius: 4, width: '100%' }}>Eliminar</button>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
@@ -319,12 +339,20 @@ function AdminTurnos({ token, toast }) {
   const [emps, setEmps]         = useState([])   // todos los empleados
   const [editando, setEditando] = useState(null) // null | 'nuevo' | turno
   const [seccion, setSeccion]   = useState('jornadas') // 'jornadas' | 'asignaciones'
+  const [seleccion, setSeleccion] = useState({}) // { turno_id: Set<empId> }
+  const [guardando, setGuardando] = useState(null) // turno_id guardando
   const formVacio = { nombre: '', hora_entrada: '08:00', hora_salida: '18:00', dias_semana: [1,2,3,4,5] }
   const [form, setForm]         = useState(formVacio)
 
   const load = useCallback(() => {
     Promise.all([api.getTurnos(token), api.getEmpleadosAdmin(token)])
-      .then(([t, e]) => { setTurnos(t); setEmps(e) }).catch(() => {})
+      .then(([t, e]) => {
+        setTurnos(t); setEmps(e)
+        // Inicializar selección con los empleados ya asignados a cada jornada
+        const sel = {}
+        t.forEach(turno => { sel[turno.id] = new Set((turno.empleados || []).map(emp => emp.id)) })
+        setSeleccion(sel)
+      }).catch(() => {})
   }, [token])
   useEffect(load, [load])
 
@@ -346,9 +374,26 @@ function AdminTurnos({ token, toast }) {
     catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
-  async function asignar(empId, turnoId) {
-    try { await api.asignarTurno(token, empId, turnoId || null); load() }
-    catch (e) { toast('Error: ' + e.message, 'err') }
+  function toggleEmpSeleccion(turnoId, empId) {
+    setSeleccion(prev => {
+      const s = new Set(prev[turnoId] || [])
+      s.has(empId) ? s.delete(empId) : s.add(empId)
+      return { ...prev, [turnoId]: s }
+    })
+  }
+
+  async function guardarAsignaciones(turnoId) {
+    setGuardando(turnoId)
+    const nuevos = seleccion[turnoId] || new Set()
+    const turno  = turnos.find(t => t.id === turnoId)
+    const previos = new Set((turno?.empleados || []).map(e => e.id))
+    try {
+      // Empleados a asignar (no estaban antes) o a desasignar (estaban antes)
+      const cambios = emps.filter(e => nuevos.has(e.id) !== previos.has(e.id))
+      await Promise.all(cambios.map(e => api.asignarTurno(token, e.id, nuevos.has(e.id) ? turnoId : null)))
+      toast('Asignaciones guardadas'); load()
+    } catch (e) { toast('Error: ' + e.message, 'err') }
+    finally { setGuardando(null) }
   }
 
   return (
@@ -452,31 +497,46 @@ function AdminTurnos({ token, toast }) {
 
       {/* ── SECCIÓN ASIGNACIONES ──────────────────────────────────────── */}
       {seccion === 'asignaciones' && (
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-          {turnos.length === 0 && (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
-              Primero crea al menos una jornada en la pestaña "Jornadas"
-            </div>
-          )}
-          {emps.map((e, i) => (
-            <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < emps.length - 1 ? '1px solid var(--border)' : 'none' }}>
-              <Av name={e.nombre} size={32} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 'bold' }}>{e.nombre}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.cargo || e.departamento || '—'}</div>
-              </div>
-              <select
-                value={e.turno_id || ''}
-                onChange={ev => asignar(e.id, ev.target.value)}
-                style={{ width: 180, fontSize: 12 }}
-              >
-                <option value=''>Sin jornada</option>
-                {turnos.map(t => <option key={t.id} value={t.id}>{t.nombre} ({t.hora_entrada?.slice(0,5)}–{t.hora_salida?.slice(0,5)})</option>)}
-              </select>
-            </div>
-          ))}
-          {emps.length === 0 && <Empty txt='Sin empleados' />}
-        </div>
+        <>
+          {turnos.length === 0 && <Empty txt='Primero crea una jornada en la pestaña "Jornadas"' />}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
+            {turnos.map(turno => {
+              const sel = seleccion[turno.id] || new Set()
+              const asignados = emps.filter(e => sel.has(e.id)).length
+              return (
+                <div key={turno.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 2 }}>{turno.nombre}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{turno.hora_entrada?.slice(0,5)}–{turno.hora_salida?.slice(0,5)} · {nomDias(turno.dias_semana)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--accent2)', marginTop: 3 }}>{asignados} empleado{asignados !== 1 ? 's' : ''} asignado{asignados !== 1 ? 's' : ''}</div>
+                  </div>
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginBottom: 12, maxHeight: 220, overflowY: 'auto' }}>
+                    {emps.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>Sin empleados</div>}
+                    {emps.map(e => (
+                      <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer' }}>
+                        <input
+                          type='checkbox'
+                          checked={sel.has(e.id)}
+                          onChange={() => toggleEmpSeleccion(turno.id, e.id)}
+                          style={{ accentColor: 'var(--accent)', width: 15, height: 15, flexShrink: 0 }}
+                        />
+                        <Av name={e.nombre} size={24} />
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 'bold' }}>{e.nombre}</div>
+                          <div style={{ fontSize: 10, color: 'var(--muted)' }}>{e.cargo || e.departamento || '—'}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <Btn
+                    label={guardando === turno.id ? 'Guardando…' : 'Guardar asignaciones'}
+                    onClick={() => guardarAsignaciones(turno.id)}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )
