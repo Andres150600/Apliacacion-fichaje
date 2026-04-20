@@ -302,7 +302,7 @@ function AdminEmpleados({ token, toast }) {
       )}
       <div className="emp-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>
         {emps.map((e, i) => {
-          const turno = turnos.find(t => t.id === e.turno_id)
+          const empTurnos = turnos.filter(t => t.empleados?.some(x => x.id === e.id))
           return (
             <div key={e.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -310,9 +310,14 @@ function AdminEmpleados({ token, toast }) {
                 <div><div style={{ fontSize: 14, fontWeight: 'bold' }}>{e.nombre}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.cargo}</div></div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>{e.departamento} · {e.email}</div>
-              <div style={{ fontSize: 11, color: turno ? 'var(--accent)' : 'var(--muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span>◑</span>
-                <span>{turno ? `${turno.nombre} · ${turno.hora_entrada?.slice(0,5)}–${turno.hora_salida?.slice(0,5)}` : 'Sin jornada'}</span>
+              <div style={{ marginBottom: 8 }}>
+                {empTurnos.length > 0 ? empTurnos.map(t => (
+                  <div key={t.id} style={{ fontSize: 11, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                    <span>◑</span><span>{t.nombre} · {t.hora_entrada?.slice(0,5)}–{t.hora_salida?.slice(0,5)}</span>
+                  </div>
+                )) : (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}><span>◑</span><span>Sin jornada</span></div>
+                )}
               </div>
               <div style={{ fontSize: 11, marginBottom: 4, display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--accent2)' }}>{e.dias_usados || 0} usados</span>
@@ -390,7 +395,11 @@ function AdminTurnos({ token, toast }) {
     try {
       // Empleados a asignar (no estaban antes) o a desasignar (estaban antes)
       const cambios = emps.filter(e => nuevos.has(e.id) !== previos.has(e.id))
-      await Promise.all(cambios.map(e => api.asignarTurno(token, e.id, nuevos.has(e.id) ? turnoId : null)))
+      await Promise.all(cambios.map(e =>
+        nuevos.has(e.id)
+          ? api.asignarTurno(token, e.id, turnoId)
+          : api.desasignarTurno(token, e.id, turnoId)
+      ))
       toast('Asignaciones guardadas'); load()
     } catch (e) { toast('Error: ' + e.message, 'err') }
     finally { setGuardando(null) }

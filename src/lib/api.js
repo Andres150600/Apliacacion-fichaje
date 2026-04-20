@@ -63,7 +63,8 @@ export const api = {
   postTurno:      (token, data)            => post('/turnos', data, token),
   patchTurno:     (token, id, data)        => patch(`/turnos/${id}`, data, token),
   deleteTurno:    (token, id)              => del(`/turnos/${id}`, token),
-  asignarTurno:   (token, empId, turnoId)  => patch(`/empleados/${empId}/turno`, { turno_id: turnoId }, token),
+  asignarTurno:    (token, empId, turnoId) => post(`/empleados/${empId}/turnos/${turnoId}`, {}, token),
+  desasignarTurno: (token, empId, turnoId) => del(`/empleados/${empId}/turnos/${turnoId}`, token),
 
   // Informes
   getDashboard:  (token)               => get('/informes/dashboard', token),
