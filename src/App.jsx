@@ -6,10 +6,10 @@ import { api, warmupBackend } from './lib/api'
 
 function loadSession() {
   try {
-    const s = sessionStorage.getItem('wc_session')
+    const s = localStorage.getItem('wc_session')
     if (!s) return {}
     const { user, token, loginTime } = JSON.parse(s)
-    if (Date.now() - loginTime > 8 * 3600000) { sessionStorage.removeItem('wc_session'); return {} }
+    if (Date.now() - loginTime > 8 * 3600000) { localStorage.removeItem('wc_session'); return {} }
     return { user, token, loginTime }
   } catch { return {} }
 }
@@ -38,7 +38,7 @@ export default function App() {
     if (!user || !loginTime) return
     const id = setInterval(() => {
       if (Date.now() - loginTime > 8 * 3600000) {
-        sessionStorage.removeItem('wc_session')
+        localStorage.removeItem('wc_session')
         setUser(null); setToken(null); setView('login'); setLoginTime(null)
         showToast('Sesión expirada, vuelve a iniciar sesión', 'err')
       }
@@ -76,14 +76,14 @@ export default function App() {
 
   const login = (empleado, tok) => {
     const lt = Date.now()
-    sessionStorage.setItem('wc_session', JSON.stringify({ user: empleado, token: tok, loginTime: lt }))
+    localStorage.setItem('wc_session', JSON.stringify({ user: empleado, token: tok, loginTime: lt }))
     setUser(empleado); setToken(tok)
     setLoginTime(lt)
     setView(empleado.es_admin ? 'admin' : 'emp')
   }
 
   const logout = () => {
-    sessionStorage.removeItem('wc_session')
+    localStorage.removeItem('wc_session')
     setUser(null); setToken(null); setView('login')
     setLoginTime(null); setFichajeHoy(null); setPausas([]); setPausaActiva(null)
   }
