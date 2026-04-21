@@ -691,13 +691,16 @@ function AdminDocumentos({ token, toast }) {
   const [form, setForm]           = useState({ empleado_id: '', nombre: '', tipo: 'Nómina', descripcion: '' })
   const [archivo, setArchivo]     = useState(null)
 
+  useEffect(() => {
+    api.getEmpleadosAdmin(token).then(setEmpleados).catch(() => {})
+  }, [token])
+
   const load = useCallback(() => {
     setLoading(true)
     const params = filtroEmp ? { empleado_id: filtroEmp } : {}
-    Promise.all([
-      api.getDocumentosAdmin(token, params),
-      api.getEmpleadosAdmin(token)
-    ]).then(([d, e]) => { setDocs(d); setEmpleados(e); setLoading(false) }).catch(() => setLoading(false))
+    api.getDocumentosAdmin(token, params)
+      .then(d => { setDocs(d); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [token, filtroEmp])
 
   useEffect(load, [load])
