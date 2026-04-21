@@ -741,11 +741,14 @@ function AdminDocumentos({ token, toast }) {
     <div>
       <SH title='Documentos' sub={`${docs.length} archivos`} />
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={filtroEmp} onChange={e => setFiltroEmp(e.target.value)} style={{ width: 200 }}>
-          <option value=''>Todos los empleados</option>
-          {empleados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-        </select>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase' }}>Filtrar:</span>
+          <select value={filtroEmp} onChange={e => setFiltroEmp(e.target.value)} style={{ width: 180 }}>
+            <option value=''>Todos los empleados</option>
+            {empleados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </select>
+        </div>
         <Btn label='+ Subir documento' onClick={() => setShowForm(v => !v)} />
       </div>
 
@@ -753,10 +756,13 @@ function AdminDocumentos({ token, toast }) {
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20, marginBottom: 20 }}>
           <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)', marginBottom: 14, textTransform: 'uppercase' }}>Nuevo documento</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 10 }}>
-            <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))} style={{ width: '100%' }}>
-              <option value=''>Seleccionar empleado *</option>
-              {empleados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
-            </select>
+            <div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4, letterSpacing: 1 }}>EMPLEADO *</div>
+              <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))} style={{ width: '100%' }}>
+                <option value=''>Seleccionar empleado</option>
+                {empleados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+              </select>
+            </div>
             <input placeholder='Nombre del documento *' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
             <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))} style={{ width: '100%' }}>
               {TIPOS_DOC.map(t => <option key={t} value={t}>{t}</option>)}
