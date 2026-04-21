@@ -22,8 +22,9 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
     { id: 'empleados', icon: '◉', label: 'Equipo' },
     { id: 'turnos',    icon: '◑', label: 'Turnos' },
     { id: 'festivos',  icon: '◈', label: 'Festivos' },
-    { id: 'informes',  icon: '▤', label: 'Informes' },
-    { id: 'alertas',   icon: '▲', label: 'Alertas' },
+    { id: 'informes',   icon: '▤', label: 'Informes' },
+    { id: 'alertas',    icon: '▲', label: 'Alertas' },
+    { id: 'documentos', icon: '▣', label: 'Docs' },
   ]
 
   return (
@@ -57,7 +58,8 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
         {tab === 'turnos'    && <AdminTurnos token={token} toast={toast} />}
         {tab === 'festivos'  && <AdminFestivos token={token} toast={toast} />}
         {tab === 'informes'  && <AdminInformes token={token} toast={toast} />}
-        {tab === 'alertas'   && <AdminAlertas token={token} />}
+        {tab === 'alertas'    && <AdminAlertas token={token} />}
+        {tab === 'documentos' && <AdminDocumentos token={token} toast={toast} />}
       </main>
       <nav className="bottom-nav">
         <div className="bottom-nav-inner">
@@ -670,6 +672,125 @@ function AdminAlertas({ token }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Documentos Admin ─────────────────────────────────────────────────────────
+const TIPOS_DOC = ['Nómina', 'Contrato', 'Certificado', 'Formación', 'Otro']
+
+function AdminDocumentos({ token, toast }) {
+  const [docs, setDocs]           = useState([])
+  const [empleados, setEmpleados] = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [uploading, setUploading] = useState(false)
+  const [showForm, setShowForm]   = useState(false)
+  const [filtroEmp, setFiltroEmp] = useState('')
+  const [form, setForm]           = useState({ empleado_id: '', nombre: '', tipo: 'Nómina', descripcion: '' })
+  const [archivo, setArchivo]     = useState(null)
+
+  const load = useCallback(() => {
+    setLoading(true)
+    const params = filtroEmp ? { empleado_id: filtroEmp } : {}
+    Promise.all([
+      api.getDocumentosAdmin(token, params),
+      api.getEmpleadosAdmin(token)
+    ]).then(([d, e]) => { setDocs(d); setEmpleados(e); setLoading(false) }).catch(() => setLoading(false))
+  }, [token, filtroEmp])
+
+  useEffect(load, [load])
+
+  async function subir() {
+    if (!form.empleado_id || !form.nombre || !archivo) {
+      return toast('Selecciona empleado, nombre y archivo')
+    }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append('empleado_id', form.empleado_id)
+      fd.append('nombre', form.nombre)
+      fd.append('tipo', form.tipo)
+      fd.append('descripcion', form.descripcion)
+      fd.append('archivo', archivo)
+      await api.postDocumento(token, fd)
+      toast('Documento subido')
+      setShowForm(false)
+      setForm({ empleado_id: '', nombre: '', tipo: 'Nómina', descripcion: '' })
+      setArchivo(null)
+      load()
+    } catch (e) { toast(e.message) } finally { setUploading(false) }
+  }
+
+  async function borrar(id, nombre) {
+    if (!confirm(`¿Eliminar "${nombre}"?`)) return
+    try {
+      await api.deleteDocumento(token, id)
+      toast('Documento eliminado')
+      load()
+    } catch (e) { toast(e.message) }
+  }
+
+  const empNombre = id => empleados.find(e => e.id === id)?.nombre || '—'
+
+  return (
+    <div>
+      <SH title='Documentos' sub={`${docs.length} archivos`} />
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={filtroEmp} onChange={e => setFiltroEmp(e.target.value)} style={{ width: 200 }}>
+          <option value=''>Todos los empleados</option>
+          {empleados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+        </select>
+        <Btn label='+ Subir documento' onClick={() => setShowForm(v => !v)} />
+      </div>
+
+      {showForm && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20, marginBottom: 20 }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)', marginBottom: 14, textTransform: 'uppercase' }}>Nuevo documento</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 10 }}>
+            <select value={form.empleado_id} onChange={e => setForm(f => ({ ...f, empleado_id: e.target.value }))} style={{ width: '100%' }}>
+              <option value=''>Seleccionar empleado *</option>
+              {empleados.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+            </select>
+            <input placeholder='Nombre del documento *' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+            <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))} style={{ width: '100%' }}>
+              {TIPOS_DOC.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input placeholder='Descripción (opcional)' value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <input type='file' onChange={e => setArchivo(e.target.files[0] || null)}
+              style={{ fontSize: 12, color: 'var(--muted)', width: '100%', padding: '8px 0' }} />
+            {archivo && <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4 }}>✓ {archivo.name} ({(archivo.size/1024).toFixed(1)} KB)</div>}
+          </div>
+          <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+            <Btn label={uploading ? 'Subiendo...' : 'Subir'} onClick={subir} />
+            <button onClick={() => setShowForm(false)} style={{ padding: '7px 14px', fontSize: 11, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 4, letterSpacing: 1, textTransform: 'uppercase' }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {loading ? <Loading /> : docs.length === 0 ? (
+        <Empty txt='No hay documentos subidos' />
+      ) : (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          <Tabla cols={['Empleado', 'Documento', 'Tipo', 'Descripción', 'Fecha', '']}>
+            {docs.map(d => (
+              <tr key={d.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 'bold' }}>{d.empleados?.nombre || empNombre(d.empleado_id)}</td>
+                <td style={{ padding: '10px 12px', fontSize: 13 }}>{d.nombre}</td>
+                <td style={{ padding: '10px 12px' }}>{d.tipo ? <Badge label={d.tipo} c='var(--accent)' /> : <span style={{ color: 'var(--muted)', fontSize: 11 }}>—</span>}</td>
+                <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--muted)', maxWidth: 180 }}>{d.descripcion || '—'}</td>
+                <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDate(d.created_at)}</td>
+                <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                  {d.url && <a href={d.url} target='_blank' rel='noreferrer' style={{ fontSize: 11, color: 'var(--accent)', marginRight: 10, textDecoration: 'none', letterSpacing: 1 }}>↓ Ver</a>}
+                  <button onClick={() => borrar(d.id, d.nombre)} style={{ fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: 1, textTransform: 'uppercase' }}>Borrar</button>
+                </td>
+              </tr>
+            ))}
+          </Tabla>
         </div>
       )}
     </div>

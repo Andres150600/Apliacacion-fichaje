@@ -801,6 +801,12 @@ function EmpDocumentos({ token }) {
             {d.tipo&&<Badge label={d.tipo} c='var(--accent)'/>}
             {d.descripcion&&<div style={{ fontSize:11,color:'var(--muted)',marginTop:6 }}>{d.descripcion}</div>}
             <div style={{ fontSize:10,color:'var(--muted)',marginTop:8 }}>{fmtDate(d.created_at)}</div>
+            {d.url&&(
+              <a href={d.url} target='_blank' rel='noreferrer'
+                style={{ display:'inline-block',marginTop:10,fontSize:11,color:'var(--accent)',textDecoration:'none',letterSpacing:1,fontWeight:'bold' }}>
+                ↓ Descargar
+              </a>
+            )}
           </div>
         ))}
       </div>

@@ -27,6 +27,17 @@ async function req(method, path, body, token) {
   return data
 }
 
+async function upload(path, formData, token) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: formData
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Error desconocido')
+  return data
+}
+
 const get = (path, token) => {
   const key = path + (token?.slice(-10) || '')
   const cached = cacheGet(key)
@@ -72,7 +83,10 @@ export const api = {
   getAlertas:    (token)               => get('/informes/alertas', token),
 
   // Documentos
-  getDocumentos: (token)               => get('/documentos', token),
+  getDocumentos:      (token)                  => get('/documentos', token),
+  getDocumentosAdmin: (token, params = {})     => get(`/documentos/admin?${new URLSearchParams(params)}`, token),
+  postDocumento:      (token, formData)        => upload('/documentos', formData, token).then(d => { cacheInvalidate('documentos'); return d }),
+  deleteDocumento:    (token, id)              => del(`/documentos/${id}`, token),
 
   // Pausas
   postPausa:     (token, data)         => post('/pausas', data, token),
