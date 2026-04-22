@@ -77,6 +77,45 @@ export default function Admin({ user, token, onLogout, toast, dark, toggleDark }
   )
 }
 
+// ─── Iconos SVG inline ────────────────────────────────────────────────────────
+function Icon({ d, size = 18, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke={color} strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+      <path d={d} />
+    </svg>
+  )
+}
+const IC = {
+  team:    'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  clock:   'M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zM12 6v6l4 2',
+  check:   'M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3',
+  warning: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
+}
+
+function StatCard({ label, value, icon, color, sub, pulse }) {
+  return (
+    <div style={{
+      background: 'var(--surface)', borderRadius: 12,
+      border: '1px solid var(--border)', borderTop: `3px solid ${color}`,
+      padding: '18px 16px', display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 'bold', lineHeight: 1.4 }}>
+          {label}
+        </div>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: `${color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon d={icon} size={17} color={color} />
+        </div>
+      </div>
+      <div style={{ fontSize: 38, fontWeight: 'bold', color, lineHeight: 1, letterSpacing: -1 }}>{value}</div>
+      <div style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
+        {pulse && <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block', animation: 'pulse 2s infinite' }} />}
+        {sub}
+      </div>
+    </div>
+  )
+}
+
 function AdminDashboard({ token }) {
   const [data, setData] = useState(null)
   useEffect(() => {
@@ -85,65 +124,234 @@ function AdminDashboard({ token }) {
 
   if (!data) return <Loading />
   const { stats, semana, departamentos, recientes } = data
-  const mx = Math.max(...semana.map(s => s.n), 1)
+  const mx      = Math.max(...semana.map(s => s.n), 1)
+  const maxDept = Math.max(...departamentos.map(x => x[1]), 1)
+  const hoyIdx  = (new Date().getDay() + 6) % 7  // lun=0 … dom=6
+
+  const statCards = [
+    { label: 'Empleados',    value: stats.empleados,    icon: IC.team,    color: 'var(--info)',    sub: 'en plantilla' },
+    { label: 'Fichajes hoy', value: stats.fichajes_hoy, icon: IC.clock,   color: 'var(--accent)',  sub: 'entradas registradas hoy' },
+    { label: 'En oficina',   value: stats.en_oficina,   icon: IC.check,   color: 'var(--accent2)', sub: 'trabajando ahora', pulse: stats.en_oficina > 0 },
+    { label: 'Pendientes',   value: stats.pendientes,   icon: IC.warning, color: stats.pendientes > 0 ? 'var(--danger)' : 'var(--muted)', sub: 'ausencias por revisar' },
+  ]
 
   return (
     <div>
       <SH title='Panel de control' sub={fmtDate(new Date())} />
-      <div className="stat-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 22 }}>
-        {[{ l: 'Empleados', v: stats.empleados }, { l: 'Fichajes hoy', v: stats.fichajes_hoy }, { l: 'En oficina', v: stats.en_oficina, hi: true }, { l: 'Pendientes', v: stats.pendientes, warn: stats.pendientes > 0 }].map((s, i) => (
-          <div key={i} style={{ background: 'var(--surface)', border: `1px solid ${s.hi ? 'var(--accent2)' : s.warn ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 8, padding: 16 }}>
-            <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>{s.l}</div>
-            <div style={{ fontSize: 28, color: s.hi ? 'var(--accent2)' : s.warn ? 'var(--danger)' : 'var(--text)' }}>{s.v}</div>
-          </div>
-        ))}
+
+      {/* ── Stat cards ── */}
+      <div className='stat-grid' style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 22 }}>
+        {statCards.map((s, i) => <StatCard key={i} {...s} />)}
       </div>
-      <div className="week-dept-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 22 }}>
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18 }}>
-          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 14, textTransform: 'uppercase' }}>Esta semana</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 72 }}>
-            {semana.map((s, i) => (
-              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <div style={{ width: '100%', background: s.n > 0 ? 'var(--accent)' : 'var(--surface2)', height: `${(s.n / mx) * 60 + 4}px`, minHeight: 4, borderRadius: 2 }} />
-                <span style={{ fontSize: 10, color: 'var(--muted)' }}>{s.d}</span>
-                {s.n > 0 && <span style={{ fontSize: 10, color: 'var(--accent)' }}>{s.n}</span>}
-              </div>
-            ))}
+
+      {/* ── Semana + Departamentos ── */}
+      <div className='week-dept-grid' style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 22 }}>
+
+        {/* Gráfico semanal */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Fichajes esta semana</div>
+            <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 'bold' }}>
+              {semana.reduce((a, s) => a + s.n, 0)} total
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 90 }}>
+            {semana.map((s, i) => {
+              const esHoy = i === hoyIdx
+              const h     = Math.round((s.n / mx) * 72) + 6
+              return (
+                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  {s.n > 0 && (
+                    <span style={{ fontSize: 10, color: esHoy ? 'var(--accent)' : 'var(--muted)', fontWeight: esHoy ? 'bold' : 'normal' }}>{s.n}</span>
+                  )}
+                  <div style={{
+                    width: '100%', height: `${h}px`, minHeight: 6, borderRadius: '4px 4px 2px 2px',
+                    background: s.n === 0 ? 'var(--surface2)' : esHoy ? 'var(--accent)' : 'var(--accent)44',
+                    boxShadow: esHoy && s.n > 0 ? '0 0 8px var(--accent)66' : 'none',
+                    transition: 'height 0.3s ease',
+                  }} />
+                  <span style={{ fontSize: 10, color: esHoy ? 'var(--accent)' : 'var(--muted)', fontWeight: esHoy ? 'bold' : 'normal' }}>{s.d}</span>
+                </div>
+              )
+            })}
           </div>
         </div>
-        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18 }}>
-          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 14, textTransform: 'uppercase' }}>Departamentos</div>
+
+        {/* Departamentos */}
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 18, textTransform: 'uppercase', fontWeight: 'bold' }}>Por departamento</div>
+          {departamentos.length === 0 && <Empty txt='Sin datos' />}
           {departamentos.map(([d, n], i) => (
-            <div key={d} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}><span>{d}</span><span style={{ color: 'var(--accent)' }}>{n}</span></div>
-              <div style={{ height: 3, background: 'var(--surface2)', borderRadius: 2 }}><div style={{ height: '100%', background: COLORS[i % COLORS.length], width: `${(n / Math.max(...departamentos.map(x => x[1]), 1)) * 100}%`, borderRadius: 2 }} /></div>
+            <div key={d} style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 'bold' }}>{d}</span>
+                <span style={{ fontSize: 11, color: COLORS[i % COLORS.length], fontWeight: 'bold' }}>{n}</span>
+              </div>
+              <div style={{ height: 5, background: 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: COLORS[i % COLORS.length], width: `${(n / maxDept) * 100}%`, borderRadius: 3, transition: 'width 0.4s ease' }} />
+              </div>
             </div>
           ))}
         </div>
       </div>
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 18 }}>
-        <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', marginBottom: 14, textTransform: 'uppercase' }}>Actividad reciente</div>
-        {recientes.map(r => (
-          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
-            <Av name={r.empleados?.nombre || '?'} size={26} />
-            <span style={{ flex: 1, fontSize: 13 }}>{r.empleados?.nombre}</span>
-            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtDate(r.fecha)}</span>
-            <span style={{ fontSize: 11, color: 'var(--accent2)' }}>↑{fmt(r.entrada)}</span>
-            {r.salida && <span style={{ fontSize: 11, color: 'var(--danger)' }}>↓{fmt(r.salida)}</span>}
-          </div>
-        ))}
-        {recientes.length === 0 && <Empty txt='Sin actividad' />}
+
+      {/* ── Actividad reciente ── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 'bold' }}>Actividad reciente</div>
+          <Badge label={`${recientes.length} registros`} c='var(--accent)' />
+        </div>
+        {recientes.length === 0 ? (
+          <div style={{ padding: 20 }}><Empty txt='Sin actividad' /></div>
+        ) : recientes.map((r, i) => {
+          const completo = !!r.salida
+          const dur      = completo ? fmtDur(new Date(r.salida) - new Date(r.entrada)) : null
+          return (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: i < recientes.length - 1 ? '1px solid var(--border)' : 'none' }}>
+              <Av name={r.empleados?.nombre || '?'} size={32} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.empleados?.nombre}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{fmtDate(r.fecha)}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 12, color: 'var(--accent2)', fontVariantNumeric: 'tabular-nums' }}>↑ {fmt(r.entrada)}</span>
+                {r.salida
+                  ? <span style={{ fontSize: 12, color: 'var(--danger)', fontVariantNumeric: 'tabular-nums' }}>↓ {fmt(r.salida)}</span>
+                  : <span style={{ fontSize: 11, color: 'var(--muted)' }}>—</span>
+                }
+                {dur
+                  ? <Badge label={dur} c='var(--accent2)' />
+                  : <Badge label='En curso' c='var(--accent)' />
+                }
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
+// ─── Timeline helpers ─────────────────────────────────────────────────────────
+const TL_START  = 6 * 60    // 06:00
+const TL_END    = 22 * 60   // 22:00
+const TL_RANGE  = TL_END - TL_START
+const TL_TICKS  = [6, 9, 12, 15, 18, 21]
+
+function toMin(isoStr) {
+  if (!isoStr) return null
+  const d = new Date(isoStr)
+  return d.getHours() * 60 + d.getMinutes()
+}
+function toPct(min) {
+  return `${Math.max(0, Math.min(100, ((min - TL_START) / TL_RANGE) * 100)).toFixed(2)}%`
+}
+
+function FichajeCard({ r }) {
+  const entMin  = toMin(r.entrada)
+  const salMin  = r.salida ? toMin(r.salida) : toMin(new Date().toISOString())
+  const enCurso = !r.salida
+  const dur     = r.salida ? fmtDur(new Date(r.salida) - new Date(r.entrada))
+                           : fmtDur(Date.now() - new Date(r.entrada))
+  const barLeft  = entMin != null ? toPct(entMin) : '0%'
+  const barWidth = (entMin != null && salMin != null)
+    ? `${Math.max(0.8, Math.min(100, ((salMin - entMin) / TL_RANGE) * 100)).toFixed(2)}%`
+    : '0.8%'
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 8 }}>
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <Av name={r.empleados?.nombre || '?'} size={30} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 'bold', lineHeight: 1.2 }}>{r.empleados?.nombre}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>{dur}</span>
+          <Badge
+            label={enCurso ? 'En curso' : 'Completo'}
+            c={enCurso ? 'var(--accent)' : 'var(--accent2)'}
+          />
+        </div>
+      </div>
+
+      {/* Visual timeline bar */}
+      <div style={{ position: 'relative', height: 22, marginBottom: 6, borderRadius: 6, overflow: 'hidden', background: 'var(--surface2)' }}>
+        {/* Tick lines */}
+        {TL_TICKS.map(h => (
+          <div key={h} style={{ position: 'absolute', left: toPct(h * 60), top: 0, bottom: 0, width: 1, background: 'var(--border)', opacity: 0.6 }} />
+        ))}
+        {/* Work segment */}
+        {entMin != null && (
+          <div style={{
+            position: 'absolute', left: barLeft, width: barWidth, top: 3, bottom: 3, borderRadius: 4,
+            background: enCurso ? 'var(--accent)' : '#4caf84',
+            opacity: enCurso ? 0.9 : 1,
+            boxShadow: enCurso ? '0 0 6px var(--accent)' : 'none',
+          }} />
+        )}
+        {/* "Sin salida" red right edge */}
+        {enCurso && entMin != null && (
+          <div style={{ position: 'absolute', right: 0, top: 3, bottom: 3, width: 4, borderRadius: 4, background: 'var(--danger)', opacity: 0.5 }} />
+        )}
+      </div>
+
+      {/* Hour labels */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 10 }}>
+        {TL_TICKS.map(h => <span key={h}>{String(h).padStart(2, '0')}h</span>)}
+      </div>
+
+      {/* Entry / exit pills */}
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent2)', flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: 'var(--accent2)', fontVariantNumeric: 'tabular-nums', fontWeight: 'bold' }}>↑ {fmt(r.entrada)}</span>
+        </div>
+        {r.salida ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: 'var(--danger)', fontVariantNumeric: 'tabular-nums', fontWeight: 'bold' }}>↓ {fmt(r.salida)}</span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)', opacity: 0.5, flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Sin salida registrada</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DaySection({ fecha, rows }) {
+  const complete   = rows.filter(r => r.salida).length
+  const inProgress = rows.filter(r => !r.salida).length
+  const totalMs    = rows.filter(r => r.salida).reduce((acc, r) => acc + (new Date(r.salida) - new Date(r.entrada)), 0)
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        <div style={{ background: 'var(--accent)', color: '#0f0f0f', borderRadius: 6, padding: '4px 12px', fontSize: 12, fontWeight: 'bold', letterSpacing: 0.5 }}>
+          {fmtDate(fecha)}
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{rows.length} empleado{rows.length !== 1 ? 's' : ''}</span>
+        {complete > 0    && <Badge label={`${complete} completo${complete > 1 ? 's' : ''}`}  c='var(--accent2)' />}
+        {inProgress > 0  && <Badge label={`${inProgress} en curso`}                           c='var(--accent)'  />}
+        {totalMs > 0     && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 'auto' }}>{fmtDur(totalMs)} totales</span>}
+      </div>
+      {rows.map(r => <FichajeCard key={r.id} r={r} />)}
+    </div>
+  )
+}
+
+// ─── AdminFichajes ────────────────────────────────────────────────────────────
 function AdminFichajes({ token, toast }) {
   const [rows, setRows] = useState([])
   const [emps, setEmps] = useState([])
   const [fE, setFE] = useState('')
   const [fF, setFF] = useState('')
   const [loading, setLoading] = useState(true)
+  const [vista, setVista] = useState('timeline')
 
   useEffect(() => {
     api.getEmpleadosAdmin(token).then(setEmps).catch(() => {})
@@ -174,18 +382,42 @@ function AdminFichajes({ token, toast }) {
     toast('Excel descargado')
   }
 
+  const byDate = {}
+  rows.forEach(r => {
+    if (!byDate[r.fecha]) byDate[r.fecha] = []
+    byDate[r.fecha].push(r)
+  })
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
+
   return (
     <div>
-      <SH title='Registro de fichajes' sub={`${rows.length} registros`}><Btn label='↓ Excel' onClick={exportExcel} /></SH>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <SH title='Registro de fichajes' sub={`${rows.length} registros`}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Btn label='↓ Excel' onClick={exportExcel} ghost />
+          <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 4, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            {[{ v: 'timeline', l: '⊟ Timeline' }, { v: 'tabla', l: '⊞ Tabla' }].map(({ v, l }) => (
+              <button key={v} onClick={() => setVista(v)} style={{ padding: '5px 12px', fontSize: 10, letterSpacing: 1, fontWeight: 'bold', textTransform: 'uppercase', background: vista === v ? 'var(--accent)' : 'transparent', color: vista === v ? '#0f0f0f' : 'var(--muted)', border: 'none', cursor: 'pointer' }}>
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      </SH>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
         <select value={fE} onChange={e => setFE(e.target.value)} style={{ width: 200 }}>
-          <option value=''>Todos</option>
+          <option value=''>Todos los empleados</option>
           {emps.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
         </select>
         <input type='date' value={fF} onChange={e => setFF(e.target.value)} style={{ width: 160 }} />
         {(fE || fF) && <Btn label='Limpiar' ghost onClick={() => { setFE(''); setFF('') }} />}
       </div>
-      {loading ? <Loading /> : (
+
+      {loading ? <Loading /> : rows.length === 0 ? <Empty txt='No hay fichajes' /> : vista === 'timeline' ? (
+        <div>
+          {dates.map(fecha => <DaySection key={fecha} fecha={fecha} rows={byDate[fecha]} />)}
+        </div>
+      ) : (
         <Tabla cols={['Empleado', 'Fecha', 'Entrada', 'Salida', 'Total', 'Estado']}>
           {rows.map(r => {
             const dur = r.salida ? fmtDur(new Date(r.salida) - new Date(r.entrada)) : null
@@ -202,13 +434,86 @@ function AdminFichajes({ token, toast }) {
           })}
         </Tabla>
       )}
-      {!loading && rows.length === 0 && <Empty txt='No hay fichajes' />}
     </div>
   )
 }
 
+// ─── Calendario de ausencias ─────────────────────────────────────────────────
+const AUS_COLOR = { aprobada: 'var(--accent2)', pendiente: 'var(--accent)', rechazada: 'var(--danger)' }
+const DIAS_CAL  = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+const MESES_CAL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+function CalendarioAusencias({ ausencias, anio, mes }) {
+  const daysInMonth = new Date(anio, mes + 1, 0).getDate()
+  const firstDay    = (new Date(anio, mes, 1).getDay() + 6) % 7  // lun=0
+  const todayStr    = new Date().toISOString().split('T')[0]
+
+  function ausForDay(day) {
+    const d = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    return ausencias.filter(a => a.desde <= d && a.hasta >= d)
+  }
+
+  const cells = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ]
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3, marginBottom: 3 }}>
+        {DIAS_CAL.map(d => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 'bold', color: 'var(--muted)', letterSpacing: 1, padding: '5px 0' }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={`_${i}`} />
+          const dateStr = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const aus     = ausForDay(day)
+          const isToday = dateStr === todayStr
+          const hasAus  = aus.length > 0
+          return (
+            <div key={day} style={{
+              background: isToday ? 'var(--accent)18' : hasAus ? 'var(--surface2)' : 'transparent',
+              border: isToday ? '1px solid var(--accent)55' : '1px solid var(--border)',
+              borderRadius: 8, padding: '7px 4px', minHeight: 54,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            }}>
+              <span style={{ fontSize: 12, fontWeight: isToday || hasAus ? 'bold' : 'normal', color: isToday ? 'var(--accent)' : hasAus ? 'var(--text)' : 'var(--muted)' }}>
+                {day}
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
+                {aus.slice(0, 3).map((a, j) => {
+                  const c = AUS_COLOR[a.estado] || 'var(--muted)'
+                  return (
+                    <div key={j} title={`${a.empleados?.nombre} · ${a.tipo} · ${a.estado}`} style={{
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: `${c}25`, border: `1.5px solid ${c}`,
+                      fontSize: 7, fontWeight: 'bold', color: c,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {(a.empleados?.nombre || '?')[0].toUpperCase()}
+                    </div>
+                  )
+                })}
+                {aus.length > 3 && <span style={{ fontSize: 8, color: 'var(--muted)', alignSelf: 'center' }}>+{aus.length - 3}</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── AdminAusencias ───────────────────────────────────────────────────────────
 function AdminAusencias({ token, toast }) {
-  const [rows, setRows] = useState([])
+  const [rows, setRows]   = useState([])
+  const [vista, setVista] = useState('calendario')
+  const now = new Date()
+  const [mes, setMes]   = useState(now.getMonth())
+  const [anio, setAnio] = useState(now.getFullYear())
+
   const load = useCallback(() => {
     api.getAusencias(token).then(setRows).catch(() => {})
   }, [token])
@@ -222,30 +527,122 @@ function AdminAusencias({ token, toast }) {
     } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
+  const pendientes = rows.filter(r => r.estado === 'pendiente')
+  const aprobadas  = rows.filter(r => r.estado === 'aprobada')
+  const rechazadas = rows.filter(r => r.estado === 'rechazada')
+
+  // Ausencias que tocan el mes visible
+  const rowsMes = rows.filter(r => {
+    const primerDia = new Date(anio, mes, 1)
+    const ultimoDia = new Date(anio, mes + 1, 0)
+    return new Date(r.desde) <= ultimoDia && new Date(r.hasta) >= primerDia
+  })
+
+  function prevMes() { const d = new Date(anio, mes - 1); setMes(d.getMonth()); setAnio(d.getFullYear()) }
+  function nextMes() { const d = new Date(anio, mes + 1); setMes(d.getMonth()); setAnio(d.getFullYear()) }
+
   return (
     <div>
-      <SH title='Ausencias' sub={`${rows.filter(r => r.estado === 'pendiente').length} pendientes`} />
-      <Tabla cols={['Empleado', 'Tipo', 'Desde', 'Hasta', 'Motivo', 'Estado', '']}>
-        {rows.map(a => (
-          <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
-            <td style={{ padding: '9px 10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Av name={a.empleados?.nombre || '?'} size={22} /><span style={{ fontSize: 13 }}>{a.empleados?.nombre}</span></div></td>
-            <td style={{ padding: '9px 10px', fontSize: 12 }}>{a.tipo}</td>
-            <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--muted)' }}>{fmtDate(a.desde)}</td>
-            <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--muted)' }}>{fmtDate(a.hasta)}</td>
-            <td style={{ padding: '9px 10px', fontSize: 12, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.motivo}</td>
-            <td style={{ padding: '9px 10px' }}><Badge label={a.estado} c={a.estado === 'aprobada' ? 'var(--accent2)' : a.estado === 'rechazada' ? 'var(--danger)' : 'var(--accent)'} /></td>
-            <td style={{ padding: '9px 10px' }}>
-              {a.estado === 'pendiente' && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => cambiar(a.id, 'aprobada')} style={{ background: 'var(--accent2)', color: '#0f0f0f', padding: '4px 10px', fontSize: 11, borderRadius: 4 }}>✓</button>
-                  <button onClick={() => cambiar(a.id, 'rechazada')} style={{ background: 'var(--danger)', color: '#fff', padding: '4px 10px', fontSize: 11, borderRadius: 4 }}>✗</button>
-                </div>
-              )}
-            </td>
-          </tr>
+      <SH title='Ausencias' sub={`${pendientes.length} pendientes`}>
+        <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 4, border: '1px solid var(--border)', overflow: 'hidden' }}>
+          {[{ v: 'calendario', l: '⊟ Calendario' }, { v: 'lista', l: '⊞ Lista' }].map(({ v, l }) => (
+            <button key={v} onClick={() => setVista(v)} style={{ padding: '5px 12px', fontSize: 10, letterSpacing: 1, fontWeight: 'bold', textTransform: 'uppercase', background: vista === v ? 'var(--accent)' : 'transparent', color: vista === v ? '#0f0f0f' : 'var(--muted)', border: 'none', cursor: 'pointer' }}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </SH>
+
+      {/* Resumen rápido */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { l: 'Pendientes', v: pendientes.length, c: 'var(--accent)'  },
+          { l: 'Aprobadas',  v: aprobadas.length,  c: 'var(--accent2)' },
+          { l: 'Rechazadas', v: rechazadas.length,  c: 'var(--danger)'  },
+        ].map(s => (
+          <div key={s.l} style={{ background: 'var(--surface)', border: `1px solid ${s.c}44`, borderRadius: 10, padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 26, fontWeight: 'bold', color: s.c, lineHeight: 1 }}>{s.v}</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 1 }}>{s.l}</span>
+          </div>
         ))}
-      </Tabla>
-      {rows.length === 0 && <Empty txt='No hay solicitudes' />}
+      </div>
+
+      {vista === 'calendario' ? (
+        <>
+          {/* Panel calendario */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <button onClick={prevMes} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>←</button>
+              <div style={{ fontSize: 15, fontWeight: 'bold' }}>{MESES_CAL[mes]} {anio}</div>
+              <button onClick={nextMes} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>→</button>
+            </div>
+            <CalendarioAusencias ausencias={rowsMes} anio={anio} mes={mes} />
+            <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
+              {[['aprobada', 'Aprobada'], ['pendiente', 'Pendiente'], ['rechazada', 'Rechazada']].map(([k, l]) => (
+                <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: `${AUS_COLOR[k]}25`, border: `1.5px solid ${AUS_COLOR[k]}`, display: 'inline-block' }} />
+                  {l}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Solicitudes pendientes de acción */}
+          {pendientes.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 12, fontWeight: 'bold' }}>
+                Solicitudes por revisar · {pendientes.length}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {pendientes.map(a => (
+                  <div key={a.id} style={{ background: 'var(--surface)', border: '1px solid var(--accent)44', borderLeft: '3px solid var(--accent)', borderRadius: 10, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      <Av name={a.empleados?.nombre || '?'} size={38} />
+                      <div style={{ flex: 1, minWidth: 140 }}>
+                        <div style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 4 }}>{a.empleados?.nombre}</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Badge label={a.tipo} c='var(--accent)' />
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtDate(a.desde)} → {fmtDate(a.hasta)}</span>
+                        </div>
+                        {a.motivo && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, fontStyle: 'italic' }}>"{a.motivo}"</div>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <button onClick={() => cambiar(a.id, 'aprobada')}  style={{ background: 'var(--accent2)', color: '#0f0f0f', padding: '8px 16px', fontSize: 11, fontWeight: 'bold', borderRadius: 6, border: 'none', cursor: 'pointer', letterSpacing: 0.5 }}>✓ Aprobar</button>
+                        <button onClick={() => cambiar(a.id, 'rechazada')} style={{ background: 'transparent', color: 'var(--danger)', padding: '8px 16px', fontSize: 11, fontWeight: 'bold', borderRadius: 6, border: '1px solid var(--danger)', cursor: 'pointer', letterSpacing: 0.5 }}>✗ Rechazar</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {rows.length === 0 && <Empty txt='No hay solicitudes' />}
+        </>
+      ) : (
+        <>
+          <Tabla cols={['Empleado', 'Tipo', 'Desde', 'Hasta', 'Motivo', 'Estado', '']}>
+            {rows.map(a => (
+              <tr key={a.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '9px 10px' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Av name={a.empleados?.nombre || '?'} size={22} /><span style={{ fontSize: 13 }}>{a.empleados?.nombre}</span></div></td>
+                <td style={{ padding: '9px 10px', fontSize: 12 }}>{a.tipo}</td>
+                <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--muted)' }}>{fmtDate(a.desde)}</td>
+                <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--muted)' }}>{fmtDate(a.hasta)}</td>
+                <td style={{ padding: '9px 10px', fontSize: 12, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.motivo}</td>
+                <td style={{ padding: '9px 10px' }}><Badge label={a.estado} c={AUS_COLOR[a.estado] || 'var(--muted)'} /></td>
+                <td style={{ padding: '9px 10px' }}>
+                  {a.estado === 'pendiente' && (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => cambiar(a.id, 'aprobada')}  style={{ background: 'var(--accent2)', color: '#0f0f0f', padding: '4px 10px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer' }}>✓</button>
+                      <button onClick={() => cambiar(a.id, 'rechazada')} style={{ background: 'var(--danger)',  color: '#fff',    padding: '4px 10px', fontSize: 11, borderRadius: 4, border: 'none', cursor: 'pointer' }}>✗</button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </Tabla>
+          {rows.length === 0 && <Empty txt='No hay solicitudes' />}
+        </>
+      )}
     </div>
   )
 }
