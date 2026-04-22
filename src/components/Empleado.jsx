@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
-import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, today, COLORS, diasLaborables, festivosNacionales } from './shared'
+import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, safeUrl, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, today, COLORS, diasLaborables, festivosNacionales } from './shared'
 
 function EmpleadoWrapper(props) {
   const [pausaModal, setPausaModal] = useState(false)
@@ -801,8 +801,8 @@ function EmpDocumentos({ token }) {
             {d.tipo&&<Badge label={d.tipo} c='var(--accent)'/>}
             {d.descripcion&&<div style={{ fontSize:11,color:'var(--muted)',marginTop:6 }}>{d.descripcion}</div>}
             <div style={{ fontSize:10,color:'var(--muted)',marginTop:8 }}>{fmtDate(d.created_at)}</div>
-            {d.url&&(
-              <a href={d.url} target='_blank' rel='noreferrer'
+            {safeUrl(d.url)&&(
+              <a href={safeUrl(d.url)} target='_blank' rel='noreferrer'
                 style={{ display:'inline-block',marginTop:10,fontSize:11,color:'var(--accent)',textDecoration:'none',letterSpacing:1,fontWeight:'bold' }}>
                 ↓ Descargar
               </a>

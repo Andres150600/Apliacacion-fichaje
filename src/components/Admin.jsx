@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import ExcelJS from 'exceljs'
 import { api } from '../lib/api'
-import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, fmt, fmtDate, fmtDur, today, COLORS, festivosNacionales } from './shared'
+import { SH, Av, Badge, Btn, Tabla, Empty, Loading, TopBar, NavToggle, MesNav, safeUrl, fmt, fmtDate, fmtDur, today, COLORS, festivosNacionales } from './shared'
 
 export default function Admin({ user, token, onLogout, toast, dark, toggleDark }) {
   const [tab, setTab] = useState(() => localStorage.getItem('wc_admin_tab') || 'dashboard')
@@ -394,13 +394,7 @@ function AdminFichajes({ token, toast }) {
       <SH title='Registro de fichajes' sub={`${rows.length} registros`}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Btn label='↓ Excel' onClick={exportExcel} ghost />
-          <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 4, border: '1px solid var(--border)', overflow: 'hidden' }}>
-            {[{ v: 'timeline', l: '⊟ Timeline' }, { v: 'tabla', l: '⊞ Tabla' }].map(({ v, l }) => (
-              <button key={v} onClick={() => setVista(v)} style={{ padding: '5px 12px', fontSize: 10, letterSpacing: 1, fontWeight: 'bold', textTransform: 'uppercase', background: vista === v ? 'var(--accent)' : 'transparent', color: vista === v ? '#0f0f0f' : 'var(--muted)', border: 'none', cursor: 'pointer' }}>
-                {l}
-              </button>
-            ))}
-          </div>
+          <NavToggle options={[{ v: 'timeline', l: '⊟ Timeline' }, { v: 'tabla', l: '⊞ Tabla' }]} value={vista} onChange={setVista} />
         </div>
       </SH>
 
@@ -544,13 +538,7 @@ function AdminAusencias({ token, toast }) {
   return (
     <div>
       <SH title='Ausencias' sub={`${pendientes.length} pendientes`}>
-        <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 4, border: '1px solid var(--border)', overflow: 'hidden' }}>
-          {[{ v: 'calendario', l: '⊟ Calendario' }, { v: 'lista', l: '⊞ Lista' }].map(({ v, l }) => (
-            <button key={v} onClick={() => setVista(v)} style={{ padding: '5px 12px', fontSize: 10, letterSpacing: 1, fontWeight: 'bold', textTransform: 'uppercase', background: vista === v ? 'var(--accent)' : 'transparent', color: vista === v ? '#0f0f0f' : 'var(--muted)', border: 'none', cursor: 'pointer' }}>
-              {l}
-            </button>
-          ))}
-        </div>
+        <NavToggle options={[{ v: 'calendario', l: '⊟ Calendario' }, { v: 'lista', l: '⊞ Lista' }]} value={vista} onChange={setVista} />
       </SH>
 
       {/* Resumen rápido */}
@@ -571,10 +559,8 @@ function AdminAusencias({ token, toast }) {
         <>
           {/* Panel calendario */}
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <button onClick={prevMes} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>←</button>
-              <div style={{ fontSize: 15, fontWeight: 'bold' }}>{MESES_CAL[mes]} {anio}</div>
-              <button onClick={nextMes} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}>→</button>
+            <div style={{ marginBottom: 18 }}>
+              <MesNav mes={mes} anio={anio} onChange={(m, a) => { setMes(m); setAnio(a) }} />
             </div>
             <CalendarioAusencias ausencias={rowsMes} anio={anio} mes={mes} />
             <div style={{ display: 'flex', gap: 16, marginTop: 16, fontSize: 11, color: 'var(--muted)', flexWrap: 'wrap' }}>
@@ -1191,7 +1177,7 @@ function AdminDocumentos({ token, toast }) {
                 <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--muted)', maxWidth: 180 }}>{d.descripcion || '—'}</td>
                 <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtDate(d.created_at)}</td>
                 <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                  {d.url && <a href={d.url} target='_blank' rel='noreferrer' style={{ fontSize: 11, color: 'var(--accent)', marginRight: 10, textDecoration: 'none', letterSpacing: 1 }}>↓ Ver</a>}
+                  {safeUrl(d.url) && <a href={safeUrl(d.url)} target='_blank' rel='noreferrer' style={{ fontSize: 11, color: 'var(--accent)', marginRight: 10, textDecoration: 'none', letterSpacing: 1 }}>↓ Ver</a>}
                   <button onClick={() => borrar(d.id, d.nombre)} style={{ fontSize: 11, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: 1, textTransform: 'uppercase' }}>Borrar</button>
                 </td>
               </tr>

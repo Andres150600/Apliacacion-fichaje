@@ -181,6 +181,43 @@ function btnStyle(bg) {
   return { background: bg, color: bg === 'var(--accent)' ? '#0f0f0f' : '#fff', border: 'none', borderRadius: 4, padding: '4px 10px', fontSize: 10, fontWeight: 'bold', letterSpacing: 1, cursor: 'pointer', textTransform: 'uppercase' }
 }
 
+// ─── NavToggle ────────────────────────────────────────────────────────────────
+// options: [{ v: 'timeline', l: '⊟ Timeline' }, ...]
+export function NavToggle({ options, value, onChange }) {
+  return (
+    <div style={{ display: 'flex', background: 'var(--surface2)', borderRadius: 'var(--r)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+      {options.map(({ v, l }) => (
+        <button key={v} onClick={() => onChange(v)} style={{ padding: '5px 12px', fontSize: 10, letterSpacing: 1, fontWeight: 'bold', textTransform: 'uppercase', background: value === v ? 'var(--accent)' : 'transparent', color: value === v ? '#0f0f0f' : 'var(--muted)', border: 'none', cursor: 'pointer' }}>
+          {l}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── MesNav ───────────────────────────────────────────────────────────────────
+const _MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+export function MesNav({ mes, anio, onChange }) {
+  const prev = () => { const d = new Date(anio, mes - 1); onChange(d.getMonth(), d.getFullYear()) }
+  const next = () => { const d = new Date(anio, mes + 1); onChange(d.getMonth(), d.getFullYear()) }
+  const btn  = { background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 'var(--r2)', cursor: 'pointer', fontSize: 14 }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <button onClick={prev} style={btn}>←</button>
+      <div style={{ fontSize: 15, fontWeight: 'bold' }}>{_MESES[mes]} {anio}</div>
+      <button onClick={next} style={btn}>→</button>
+    </div>
+  )
+}
+
+// ─── safeUrl (XSS: solo permite http/https) ───────────────────────────────────
+export function safeUrl(url) {
+  if (!url || typeof url !== 'string') return null
+  const u = url.trim()
+  return u.startsWith('https://') || u.startsWith('http://') ? u : null
+}
+
 export function PinModal({ titulo, onConfirm, onCancel }) {
   const [pin, setPin] = useState('')
   const [err, setErr] = useState('')
