@@ -1040,13 +1040,18 @@ function AdminInformes({ token, toast }) {
           </div>
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 20 }}>
             <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--accent)', marginBottom: 14, textTransform: 'uppercase' }}>{meses[preview.mes]} {preview.anio}</div>
-            <Tabla cols={['Empleado', 'Dpto', 'Días', 'Horas', 'Aus.Ap', 'Aus.Pe']}>
+            <Tabla cols={['Empleado', 'Dpto', 'Días', 'Horas', 'H. Extra', 'Aus.Ap', 'Aus.Pe']}>
               {preview.filas.map((f, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '9px 10px', fontSize: 13, fontWeight: 'bold' }}>{f.nombre}</td>
                   <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--muted)' }}>{f.departamento}</td>
                   <td style={{ padding: '9px 10px', fontSize: 13, color: 'var(--accent)' }}>{f.dias}</td>
                   <td style={{ padding: '9px 10px', fontSize: 12 }}>{f.horas}</td>
+                  <td style={{ padding: '9px 10px', fontSize: 12, fontWeight: 'bold' }}>
+                    {f.extras !== null
+                      ? <span style={{ color: (f.extras_ms ?? 0) >= 0 ? 'var(--accent2)' : 'var(--accent)' }}>{f.extras}</span>
+                      : <span style={{ color: 'var(--muted)' }}>—</span>}
+                  </td>
                   <td style={{ padding: '9px 10px' }}>{f.ausencias_aprobadas > 0 ? <Badge label={f.ausencias_aprobadas} c='var(--accent2)' /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>0</span>}</td>
                   <td style={{ padding: '9px 10px' }}>{f.ausencias_pendientes > 0 ? <Badge label={f.ausencias_pendientes} c='var(--danger)' /> : <span style={{ color: 'var(--muted)', fontSize: 12 }}>0</span>}</td>
                 </tr>

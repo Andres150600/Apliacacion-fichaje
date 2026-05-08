@@ -73,6 +73,22 @@ export function calcNetMs(fichajeHoy, pausas, pausaActiva, now) {
   return Math.max(0, bruto - deducido)
 }
 
+// Calcula ms de horas extra (positivo) o déficit (negativo) respecto al turno asignado.
+// Usa tiempo bruto de presencia (grossMs = salida - entrada sin descontar pausas)
+// vs ventana del turno (hora_salida - hora_entrada).
+// Devuelve null si el empleado no tiene turno asignado ese día.
+export function calcHorasExtras(grossMs, turnos, fecha) {
+  if (!grossMs || !turnos?.length || !fecha) return null
+  const dow = new Date(fecha + 'T12:00:00').getDay()
+  const dowISO = dow === 0 ? 7 : dow  // 1=Lun … 7=Dom
+  const turno = turnos.find(t => (t.dias_semana || [1,2,3,4,5]).includes(dowISO))
+  if (!turno?.hora_entrada || !turno?.hora_salida) return null
+  const [eh, em] = turno.hora_entrada.split(':').map(Number)
+  const [sh, sm] = turno.hora_salida.split(':').map(Number)
+  const turnoMs = ((sh * 60 + sm) - (eh * 60 + em)) * 60000
+  return grossMs - turnoMs
+}
+
 // ─── Componentes base ─────────────────────────────────────────────────────────
 export function SH({ title, sub, children }) {
   return (

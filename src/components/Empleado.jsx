@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '../lib/api'
-import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, safeUrl, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, today, COLORS, diasLaborables, festivosNacionales } from './shared'
+import { SH, Av, Badge, Btn, Tabla, Empty, TopBar, safeUrl, fmt, fmtDate, fmtDur, fmtDurS, calcNetMs, calcHorasExtras, today, COLORS, diasLaborables, festivosNacionales } from './shared'
 
 function EmpleadoWrapper(props) {
   const [pausaModal, setPausaModal] = useState(false)
@@ -203,13 +203,23 @@ function PausaModal({ visible, onConfirm, onCancel }) {
 
 // ─── Pestaña Fichar ───────────────────────────────────────────────────────────
 function EmpFichar({ user, token, checkedIn, fichajeHoy, pausas, pausaActiva, netMs, now, onFicharEntrada, onFicharSalida, onShowPausa, onReanudar, onRefresh, toast }) {
-  const [vac, setVac] = useState(null)
+  const [vac, setVac]       = useState(null)
+  const [turnos, setTurnos] = useState([])
   const [showManual, setShowManual] = useState(false)
 
   useEffect(() => { api.getMe(token).then(setVac).catch(() => {}) }, [token])
+  useEffect(() => { api.getTurnos(token).then(setTurnos).catch(() => {}) }, [token])
 
   const VAC_TOTAL = 25
   const rest = vac ? Math.max(0, VAC_TOTAL - (vac.dias_usados || 0)) : null
+
+  // Tiempo bruto de presencia (no descuenta pausas) para comparar con ventana del turno
+  const grossMs = fichajeHoy?.entrada
+    ? (fichajeHoy.salida
+        ? new Date(fichajeHoy.salida) - new Date(fichajeHoy.entrada)
+        : now - new Date(fichajeHoy.entrada))
+    : 0
+  const extras = fichajeHoy?.entrada ? calcHorasExtras(grossMs, turnos, fichajeHoy.fecha || today()) : null
 
   // Calcular duración de pausa activa para mostrar
   const durPausaActiva = pausaActiva ? (now - new Date(pausaActiva.inicio)) : 0
@@ -291,6 +301,23 @@ function EmpFichar({ user, token, checkedIn, fichajeHoy, pausas, pausaActiva, ne
         </div>
       )}
 
+      {/* Horas extra / déficit del día */}
+      {extras !== null && (
+        <div style={{ background: 'var(--surface)', border: `1px solid ${extras >= 0 ? 'rgba(143,184,160,0.4)' : 'rgba(200,169,110,0.3)'}`, borderRadius: 8, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ fontSize: 26, fontWeight: 'bold', fontVariantNumeric: 'tabular-nums', color: extras >= 0 ? 'var(--accent2)' : 'var(--accent)', minWidth: 90 }}>
+            {extras >= 0 ? '▲' : '▼'} {fmtDur(Math.abs(extras))}
+          </div>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: 2, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 2 }}>
+              {fichajeHoy.salida ? 'Horas extra hoy' : 'Extra en curso'}
+            </div>
+            <div style={{ fontSize: 12, color: extras >= 0 ? 'var(--accent2)' : 'var(--accent)' }}>
+              {extras >= 0 ? `${fmtDur(extras)} sobre la jornada` : `${fmtDur(Math.abs(extras))} bajo la jornada`}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Fichaje manual */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showManual ? 14 : 0 }}>
@@ -351,21 +378,32 @@ function FichajeManualForm({ token, toast, onClose }) {
 
 // ─── Historial ────────────────────────────────────────────────────────────────
 function EmpHistorial({ token }) {
-  const [rows, setRows] = useState([])
+  const [rows, setRows]     = useState([])
+  const [turnos, setTurnos] = useState([])
   useEffect(() => { api.getFichajes(token).then(setRows).catch(() => {}) }, [token])
+  useEffect(() => { api.getTurnos(token).then(setTurnos).catch(() => {}) }, [token])
   const total = rows.filter(r => r.salida).reduce((a, r) => a + (new Date(r.salida) - new Date(r.entrada)), 0)
   return (
     <div>
       <SH title='Mi historial' sub={`${rows.length} registros · ${fmtDur(total)} totales`} />
-      <Tabla cols={['Fecha', 'Entrada', 'Salida', 'Total', 'Estado']}>
+      <Tabla cols={['Fecha', 'Entrada', 'Salida', 'Total', 'H. Extra', 'Estado']}>
         {rows.map(r => {
-          const dur = r.salida ? fmtDur(new Date(r.salida) - new Date(r.entrada)) : null
+          const grossMs = r.salida ? new Date(r.salida) - new Date(r.entrada) : null
+          const dur     = grossMs ? fmtDur(grossMs) : null
+          const extras  = grossMs ? calcHorasExtras(grossMs, turnos, r.fecha) : null
           return (
             <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
               <td style={{ padding: '9px 10px', fontSize: 13 }}>{fmtDate(r.fecha)}</td>
               <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--accent2)' }}>↑{fmt(r.entrada)}</td>
               <td style={{ padding: '9px 10px', fontSize: 12, color: 'var(--danger)' }}>{r.salida ? `↓${fmt(r.salida)}` : '-'}</td>
               <td style={{ padding: '9px 10px', fontSize: 12 }}>{dur || '-'}</td>
+              <td style={{ padding: '9px 10px', fontSize: 12 }}>
+                {extras !== null
+                  ? <span style={{ color: extras >= 0 ? 'var(--accent2)' : 'var(--accent)', fontWeight: 'bold' }}>
+                      {extras >= 0 ? '▲' : '▼'} {fmtDur(Math.abs(extras))}
+                    </span>
+                  : <span style={{ color: 'var(--muted)' }}>—</span>}
+              </td>
               <td style={{ padding: '9px 10px' }}><Badge label={r.salida ? 'Completo' : 'En curso'} c={r.salida ? 'var(--accent2)' : 'var(--accent)'} /></td>
             </tr>
           )
