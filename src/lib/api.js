@@ -50,7 +50,9 @@ const del   = (path, token)       => req('DELETE', path, null, token).then(d => 
 
 export const api = {
   // Auth
-  login:         (nombre, pin)         => post('/auth/login', { nombre, pin }),
+  login:              (nombre, pin)        => post('/auth/login', { nombre, pin }),
+  refreshAccessToken: (refreshToken)       => req('POST', '/auth/refresh', { refreshToken }, null),
+  logout:             (refreshToken)       => req('POST', '/auth/logout', { refreshToken }, null).catch(() => {}),
 
   // Fichajes
   getFichajeHoy: (token)               => get('/fichajes/hoy', token),

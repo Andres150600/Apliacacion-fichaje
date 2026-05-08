@@ -639,12 +639,21 @@ function AdminEmpleados({ token, toast }) {
   const [show, setShow]     = useState(false)
   const formVacio = { nombre: '', email: '', cargo: '', departamento: '', pin: '', dias_vacaciones: 25, turno_id: '' }
   const [form, setForm]     = useState(formVacio)
+  const [modoLibre, setModoLibre] = useState({ departamento: false, cargo: false })
+
+  const deptos = [...new Set(emps.map(e => e.departamento).filter(Boolean))].sort()
+  const cargos = [...new Set(emps.map(e => e.cargo).filter(Boolean))].sort()
 
   const load = useCallback(() => {
     Promise.all([api.getEmpleadosAdmin(token), api.getTurnos(token)])
       .then(([e, t]) => { setEmps(e); setTurnos(t) }).catch(() => {})
   }, [token])
   useEffect(load, [load])
+
+  function resetForm() {
+    setForm(formVacio)
+    setModoLibre({ departamento: false, cargo: false })
+  }
 
   async function guardar() {
     if (!form.nombre || !form.email || !form.pin) { toast('Nombre, email y PIN obligatorios', 'err'); return }
@@ -653,8 +662,7 @@ function AdminEmpleados({ token, toast }) {
       if (!payload.turno_id) delete payload.turno_id
       await api.postEmpleado(token, payload)
       toast('Empleado añadido')
-      setForm(formVacio)
-      setShow(false); load()
+      resetForm(); setShow(false); load()
     } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
@@ -666,15 +674,54 @@ function AdminEmpleados({ token, toast }) {
     } catch (e) { toast('Error: ' + e.message, 'err') }
   }
 
+  function SelectOLibre({ campo, placeholder, opciones }) {
+    if (modoLibre[campo]) {
+      return (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <input
+            placeholder={`Nuevo ${placeholder.toLowerCase()}`}
+            value={form[campo]}
+            onChange={e => setForm(f => ({ ...f, [campo]: e.target.value }))}
+            style={{ flex: 1 }}
+          />
+          <button
+            onClick={() => { setModoLibre(m => ({ ...m, [campo]: false })); setForm(f => ({ ...f, [campo]: '' })) }}
+            style={{ padding: '0 10px', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--muted)', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}
+          >✕</button>
+        </div>
+      )
+    }
+    return (
+      <select
+        value={form[campo]}
+        onChange={e => {
+          if (e.target.value === '__nuevo__') {
+            setModoLibre(m => ({ ...m, [campo]: true }))
+            setForm(f => ({ ...f, [campo]: '' }))
+          } else {
+            setForm(f => ({ ...f, [campo]: e.target.value }))
+          }
+        }}
+        style={{ width: '100%' }}
+      >
+        <option value=''>{placeholder}</option>
+        {opciones.map(o => <option key={o} value={o}>{o}</option>)}
+        <option value='__nuevo__'>✏ Nuevo {placeholder.toLowerCase()}...</option>
+      </select>
+    )
+  }
+
   return (
     <div>
       <SH title='Empleados' sub={`${emps.length} registrados`}><Btn label='+ Añadir' onClick={() => setShow(!show)} /></SH>
       {show && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: 8, padding: 18, marginBottom: 18 }}>
           <div className="mobile-1col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-            {[['nombre', 'Nombre'], ['email', 'Email'], ['cargo', 'Cargo'], ['departamento', 'Departamento'], ['pin', 'PIN']].map(([k, p]) => (
-              <input key={k} placeholder={p} value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))} maxLength={k === 'pin' ? 6 : undefined} />
-            ))}
+            <input placeholder='Nombre' value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+            <input placeholder='Email' value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+            <SelectOLibre campo='cargo' placeholder='Cargo' opciones={cargos} />
+            <SelectOLibre campo='departamento' placeholder='Departamento' opciones={deptos} />
+            <input placeholder='PIN' value={form.pin} onChange={e => setForm(f => ({ ...f, pin: e.target.value }))} maxLength={6} />
             <input type='number' placeholder='Días vacaciones' value={form.dias_vacaciones} onChange={e => setForm(f => ({ ...f, dias_vacaciones: Number(e.target.value) }))} />
             <div>
               <label style={{ fontSize: 10, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>JORNADA</label>
@@ -684,7 +731,7 @@ function AdminEmpleados({ token, toast }) {
               </select>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}><Btn label='Guardar' onClick={guardar} /><Btn label='Cancelar' ghost onClick={() => setShow(false)} /></div>
+          <div style={{ display: 'flex', gap: 8 }}><Btn label='Guardar' onClick={guardar} /><Btn label='Cancelar' ghost onClick={() => { setShow(false); resetForm() }} /></div>
         </div>
       )}
       <div className="emp-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 12 }}>

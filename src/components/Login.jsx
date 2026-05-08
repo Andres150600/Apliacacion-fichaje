@@ -12,8 +12,8 @@ export default function Login({ onLogin, toast, dark, toggleDark }) {
     if (!pin) { setErr('Introduce tu PIN'); return }
     setLoading(true); setErr('')
     try {
-      const { token, empleado } = await api.login(nombre.trim(), pin)
-      onLogin(empleado, token)
+      const { token, accessToken, refreshToken, empleado } = await api.login(nombre.trim(), pin)
+      onLogin(empleado, accessToken || token, refreshToken)
     } catch (e) {
       const msg = e.message || ''
       if (msg.includes('bloqueado') || msg.includes('bloque')) {
@@ -55,7 +55,7 @@ export default function Login({ onLogin, toast, dark, toggleDark }) {
         <div style={{ marginTop: 16, padding: '10px 14px', background: 'rgba(200,169,110,0.08)', border: '1px solid rgba(200,169,110,0.2)', borderRadius: 6, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
           <span style={{ color: 'var(--accent)', fontSize: 13, flexShrink: 0 }}>⚠</span>
           <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
-            En equipos compartidos, recuerda <strong style={{ color: 'var(--text)' }}>cerrar sesión</strong> al terminar. La sesión expira automáticamente a las 8 horas.
+            En equipos compartidos, recuerda <strong style={{ color: 'var(--text)' }}>cerrar sesión</strong> al terminar. La sesión se renueva automáticamente hasta 7 días.
           </p>
         </div>
       </div>

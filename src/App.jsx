@@ -8,20 +8,22 @@ function loadSession() {
   try {
     const s = localStorage.getItem('wc_session')
     if (!s) return {}
-    const { user, token, loginTime } = JSON.parse(s)
-    if (Date.now() - loginTime > 8 * 3600000) { localStorage.removeItem('wc_session'); return {} }
-    return { user, token, loginTime }
+    const { user, token, refreshToken, loginTime } = JSON.parse(s)
+    // Expira tras 7 días (el refresh token del backend también dura 7 días)
+    if (Date.now() - loginTime > 7 * 24 * 3600000) { localStorage.removeItem('wc_session'); return {} }
+    return { user, token, refreshToken, loginTime }
   } catch { return {} }
 }
 
 export default function App() {
   const saved = loadSession()
-  const [user, setUser]       = useState(saved.user || null)
-  const [token, setToken]     = useState(saved.token || null)
-  const [view, setView]       = useState(saved.user ? (saved.user.es_admin ? 'admin' : 'emp') : 'login')
-  const [toast, setToast]     = useState(null)
-  const [dark, setDark]       = useState(true)
-  const [loginTime, setLoginTime] = useState(saved.loginTime || null)
+  const [user, setUser]             = useState(saved.user || null)
+  const [token, setToken]           = useState(saved.token || null)
+  const [refreshToken, setRefreshToken] = useState(saved.refreshToken || null)
+  const [view, setView]             = useState(saved.user ? (saved.user.es_admin ? 'admin' : 'emp') : 'login')
+  const [toast, setToast]           = useState(null)
+  const [dark, setDark]             = useState(true)
+  const [loginTime, setLoginTime]   = useState(saved.loginTime || null)
 
   // Estado global de fichaje (necesario para header siempre visible)
   const [fichajeHoy, setFichajeHoy]   = useState(null)
@@ -33,18 +35,27 @@ export default function App() {
   // Despierta el backend en cuanto carga la app (Render free tier duerme)
   useEffect(() => { warmupBackend() }, [])
 
-  // Expiración de sesión
+  // Renueva el access token silenciosamente cada 12 min (expira en 15 min)
   useEffect(() => {
-    if (!user || !loginTime) return
-    const id = setInterval(() => {
-      if (Date.now() - loginTime > 8 * 3600000) {
+    if (!refreshToken) return
+    const rt = refreshToken
+    const id = setInterval(async () => {
+      try {
+        const { accessToken, empleado } = await api.refreshAccessToken(rt)
+        setToken(accessToken)
+        setUser(empleado)
+        const s = JSON.parse(localStorage.getItem('wc_session') || '{}')
+        localStorage.setItem('wc_session', JSON.stringify({ ...s, token: accessToken, user: empleado }))
+      } catch {
         localStorage.removeItem('wc_session')
-        setUser(null); setToken(null); setView('login'); setLoginTime(null)
+        localStorage.removeItem('wc_admin_tab')
+        setUser(null); setToken(null); setRefreshToken(null); setView('login')
+        setLoginTime(null); setFichajeHoy(null); setPausas([]); setPausaActiva(null)
         showToast('Sesión expirada, vuelve a iniciar sesión', 'err')
       }
-    }, 60000)
+    }, 12 * 60 * 1000)
     return () => clearInterval(id)
-  }, [user, loginTime])
+  }, [refreshToken])
 
   // Refresca el fichaje de hoy y sus pausas
   const refreshFichaje = useCallback(async (tok) => {
@@ -74,18 +85,19 @@ export default function App() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const login = (empleado, tok) => {
+  const login = (empleado, tok, rt) => {
     const lt = Date.now()
-    localStorage.setItem('wc_session', JSON.stringify({ user: empleado, token: tok, loginTime: lt }))
-    setUser(empleado); setToken(tok)
+    localStorage.setItem('wc_session', JSON.stringify({ user: empleado, token: tok, refreshToken: rt, loginTime: lt }))
+    setUser(empleado); setToken(tok); setRefreshToken(rt)
     setLoginTime(lt)
     setView(empleado.es_admin ? 'admin' : 'emp')
   }
 
   const logout = () => {
+    if (refreshToken) api.logout(refreshToken)  // invalida en el servidor, fire-and-forget
     localStorage.removeItem('wc_session')
     localStorage.removeItem('wc_admin_tab')
-    setUser(null); setToken(null); setView('login')
+    setUser(null); setToken(null); setRefreshToken(null); setView('login')
     setLoginTime(null); setFichajeHoy(null); setPausas([]); setPausaActiva(null)
   }
 
